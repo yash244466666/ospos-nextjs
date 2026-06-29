@@ -2,6 +2,7 @@ import { requirePermission } from "@/lib/auth/with-permission";
 import { searchItems, getStockLocations } from "@/lib/items/repository";
 import { ItemsTable } from "@/components/items/items-table";
 import Link from "next/link";
+import { Package, Plus, Upload, Barcode } from "lucide-react";
 
 export default async function ItemsPage({
   searchParams,
@@ -23,26 +24,61 @@ export default async function ItemsPage({
     temporary: sp.temporary === "1",
     limit: 100,
   };
-  const { rows } = searchItems(filters);
+  const { rows, total } = searchItems(filters);
   const locations = getStockLocations();
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Items</h1>
-        <div className="flex gap-2">
-          <Link href="/items/csv-import" className="px-3 py-1.5 text-sm border border-slate-300 rounded hover:bg-slate-100">
-            CSV Import
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+            <Package className="w-5 h-5 text-emerald-600" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Items</h1>
+            <p className="text-sm text-slate-500">{total ?? rows.length} records · manage inventory and pricing</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/items/csv-import" className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-medium border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+            <Upload className="w-4 h-4" /> CSV Import
           </Link>
-          <Link href="/items/generate-barcodes" className="px-3 py-1.5 text-sm border border-slate-300 rounded hover:bg-slate-100">
-            Generate Barcodes
+          <Link href="/items/generate-barcodes" className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-medium border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+            <Barcode className="w-4 h-4" /> Barcodes
           </Link>
-          <Link href="/items/new" className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
-            New Item
+          <Link href="/items/new" className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-medium bg-[var(--color-accent)] hover:bg-emerald-700 text-white rounded-lg transition-colors shadow-sm">
+            <Plus className="w-4 h-4" /> New Item
           </Link>
         </div>
       </div>
-      <ItemsTable rows={rows} locations={locations} currentLocation={stockLocationId} />
+
+      <form className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-[var(--color-border)] shadow-sm" method="get" action="/items">
+        <input
+          type="search"
+          name="q"
+          defaultValue={sp.q ?? ""}
+          placeholder="Search items by name, number or description"
+          className="flex-1 min-w-[16rem] border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]"
+        />
+        <select
+          name="location"
+          defaultValue={stockLocationId?.toString() ?? ""}
+          className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+        >
+          <option value="">All locations</option>
+          {locations.map((l) => <option key={l.locationId} value={l.locationId}>{l.locationName}</option>)}
+        </select>
+        <button type="submit" className="px-4 py-2 bg-[var(--color-primary)] hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors">
+          Search
+        </button>
+        {sp.q && (
+          <Link href="/items" className="text-sm text-slate-500 hover:text-slate-700">Clear</Link>
+        )}
+      </form>
+
+      <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-sm overflow-hidden">
+        <ItemsTable rows={rows} locations={locations} currentLocation={stockLocationId} />
+      </div>
     </div>
   );
 }

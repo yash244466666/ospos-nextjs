@@ -2,8 +2,18 @@ import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { verifyPassword } from "./password";
 
+const allowedHostnamesRaw = process.env.ALLOWED_HOSTNAMES;
+if (process.env.NODE_ENV === "production" && !allowedHostnamesRaw) {
+  throw new Error(
+    "ALLOWED_HOSTNAMES env is required in production (GHSA-jchf-7hr6-h4f3 mitigation).",
+  );
+}
+
 export const config = {
   trustHost: true,
+  ...(allowedHostnamesRaw
+    ? { allowedHostnames: allowedHostnamesRaw.split(",").map((h) => h.trim()).filter(Boolean) }
+    : {}),
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 7 },
   pages: { signIn: "/login" },
   providers: [

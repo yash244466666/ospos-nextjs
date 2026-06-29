@@ -13,6 +13,10 @@ export interface AuthenticatedUser {
   languageCode: string | null;
 }
 
+export async function hashPassword(plain: string): Promise<string> {
+  return hash(plain, BCRYPT_COST);
+}
+
 export async function verifyPassword(
   username: string,
   password: string

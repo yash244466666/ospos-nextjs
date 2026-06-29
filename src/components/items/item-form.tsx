@@ -10,11 +10,13 @@ interface Props {
   quantities: Record<number, number>;
   locations: { locationId: number; locationName: string }[];
   suppliers: { personId: number; companyName: string | null }[];
+  taxCategories: { taxCategoryId: number; taxCategory: string }[];
+  attributes: { definitionId: number; definitionName: string; definitionType: number }[];
   includeHsn: boolean;
   useDestinationBasedTax: boolean;
 }
 
-export function ItemForm({ item, taxes, quantities, locations, suppliers, includeHsn, useDestinationBasedTax }: Props) {
+export function ItemForm({ item, taxes, quantities, locations, suppliers, taxCategories, attributes, includeHsn, useDestinationBasedTax }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [tax1Name, setTax1Name] = useState(taxes[0]?.name ?? "");
@@ -156,6 +158,44 @@ export function ItemForm({ item, taxes, quantities, locations, suppliers, includ
                 className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm bg-white text-slate-900" />
             </div>
           </div>
+        </div>
+      )}
+      {useDestinationBasedTax && (
+        <div className="border-t pt-4">
+          <label className="block text-sm font-medium mb-1 text-slate-700">Tax Category</label>
+          <select name="taxCategoryId" defaultValue={item?.taxCategoryId?.toString() ?? ""}
+            className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-slate-900">
+            <option value="">— None —</option>
+            {taxCategories.map((t) => <option key={t.taxCategoryId} value={t.taxCategoryId}>{t.taxCategory}</option>)}
+          </select>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2 border-t pt-4">
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" name="stockType" value="1" defaultChecked={item?.stockType === 1} />
+          Has No Stock (sell without tracking)
+        </label>
+      </div>
+
+      <div className="border-t pt-4">
+        <h3 className="font-medium mb-2 text-slate-800">Picture</h3>
+        {item?.picFilename && (
+          <div className="mb-2">
+            <img src={`/api/items/pic-thumb/${item.picFilename}`} alt="" className="w-32 h-32 object-contain border rounded" />
+          </div>
+        )}
+        <input type="file" name="picture" accept="image/*"
+          className="w-full border border-slate-300 rounded px-3 py-2 bg-white text-slate-900" />
+      </div>
+
+      {attributes.length > 0 && (
+        <div className="border-t pt-4">
+          <h3 className="font-medium mb-2 text-slate-800">Attributes</h3>
+          <p className="text-xs text-slate-500 mb-2">Saved separately via the attributes tab.</p>
+          <ul className="text-sm text-slate-700 list-disc pl-5">
+            {attributes.map((a) => <li key={a.definitionId}>{a.definitionName} (#{a.definitionId})</li>)}
+          </ul>
         </div>
       )}
 
