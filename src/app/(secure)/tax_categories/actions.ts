@@ -32,3 +32,7 @@ export async function deleteTaxCategoryAction(taxCategoryId: number) {
   db.update(taxCategories).set({ deleted: true }).where(eq(taxCategories.taxCategoryId, taxCategoryId)).run();
   revalidatePath("/tax_categories");
 }
+import { getAllTaxCategories, getTaxCategory, getTaxCategorySuggestions } from "@/lib/taxes/repository";
+export async function suggestTaxCategoriesAction(term: string) { await requirePermission("tax_categories"); return getTaxCategorySuggestions(term); }
+export async function getTaxCategoryRowAction(id: number) { await requirePermission("tax_categories"); return getTaxCategory(id); }
+export { getAllTaxCategories };

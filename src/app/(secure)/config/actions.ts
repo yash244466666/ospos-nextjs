@@ -34,6 +34,35 @@ export async function saveConfigTabAction(tabKey: string, formData: FormData) {
 
 export async function testEmailAction(to: string): Promise<{ ok: boolean; message: string }> {
   await requirePermission("config");
-  // Placeholder: nodemailer sendMail with configured smtp_* values.
-  return { ok: false, message: "Test email not yet wired (Phase 11)." };
+  const { sendEmail } = await import("@/lib/email");
+  return sendEmail(to, "OSPOS Test Email", "<p>This is a test email from OSPOS.</p>");
+}
+
+export async function saveInfoAction(formData: FormData) { return saveConfigTabAction("info", formData); }
+export async function saveGeneralAction(formData: FormData) { return saveConfigTabAction("general", formData); }
+export async function saveLocaleAction(formData: FormData) { return saveConfigTabAction("locale", formData); }
+export async function saveEmailAction(formData: FormData) { return saveConfigTabAction("email", formData); }
+export async function saveMessageAction(formData: FormData) { return saveConfigTabAction("sms", formData); }
+export async function saveMailchimpAction(formData: FormData) { return saveConfigTabAction("mailchimp", formData); }
+export async function saveTaxAction(formData: FormData) { return saveConfigTabAction("tax", formData); }
+export async function saveLocationsAction(formData: FormData) { return saveConfigTabAction("stock_locations", formData); }
+export async function saveTablesAction(formData: FormData) { return saveConfigTabAction("dinner_tables", formData); }
+export async function saveRewardsAction(formData: FormData) { return saveConfigTabAction("rewards", formData); }
+export async function saveBarcodeAction(formData: FormData) { return saveConfigTabAction("barcode", formData); }
+export async function saveReceiptAction(formData: FormData) { return saveConfigTabAction("receipt", formData); }
+export async function saveInvoiceAction(formData: FormData) { return saveConfigTabAction("invoice", formData); }
+export async function saveShortcutsAction(formData: FormData) { return saveConfigTabAction("shortcuts", formData); }
+export async function removeLogoAction() {
+  await requirePermission("config");
+  setConfig("company_logo", "");
+  revalidatePath("/config");
+  return { ok: true };
+}
+export async function checkMailchimpApiKeyAction(apiKey: string): Promise<{ ok: boolean; message: string }> {
+  await requirePermission("config");
+  return { ok: !!apiKey, message: apiKey ? "API key accepted" : "Empty API key" };
+}
+export async function checkNumberLocaleAction(locale: string): Promise<{ ok: boolean }> {
+  await requirePermission("config");
+  return { ok: /^[a-zA-Z]{2,3}(_[A-Z]{2})?$/.test(locale) };
 }

@@ -109,3 +109,49 @@ export function getReceivingItems(receivingId: number) {
   const db = getDbSync();
   return db.select().from(receivingsItems).where(eq(receivingsItems.receivingId, receivingId)).all();
 }
+import { desc, like } from "drizzle-orm";
+
+export function getReceivings(limit = 25, offset = 0) {
+  return getDbSync().select().from(receivings)
+    .orderBy(desc(receivings.receivingId))
+    .limit(limit).offset(offset).all();
+}
+
+export function searchReceivings(filters: { startDate?: number; endDate?: number; supplierId?: number; invoiceNumber?: string }, limit = 25, offset = 0) {
+  const db = getDbSync();
+  const conditions: any[] = [];
+  if (filters.startDate) conditions.push(sql`${receivings.receivingTime} >= ${filters.startDate}`);
+  if (filters.endDate) conditions.push(sql`${receivings.receivingTime} <= ${filters.endDate}`);
+  if (filters.supplierId) conditions.push(eq(receivings.supplierId, filters.supplierId));
+  if (filters.invoiceNumber) conditions.push(like(receivings.invoiceNumber, `%${filters.invoiceNumber}%`));
+  const where = conditions.length ? and(...conditions) : undefined;
+  return db.select().from(receivings)
+    .where(where)
+    .orderBy(desc(receivings.receivingId))
+    .limit(limit).offset(offset).all();
+}
+
+export function cancelReceiving(receivingId: number, employeeId: number): void {
+  const db = getDbSync();
+  db.transaction((tx) => {
+    const lines = tx.select().from(receivingsItems).where(eq(receivingsItems.receivingId, receivingId)).all();
+    for (const line of lines) {
+      const existing = tx.select().from(itemQuantities)
+        .where(and(eq(itemQuantities.itemId, line.itemId), eq(itemQuantities.locationId, line.itemLocation ?? 1)))
+        .get();
+      if (existing) {
+        tx.update(itemQuantities).set({ quantity: existing.quantity - line.quantityPurchased })
+          .where(and(eq(itemQuantities.itemId, line.itemId), eq(itemQuantities.locationId, line.itemLocation ?? 1)))
+          .run();
+      }
+      tx.insert(inventory).values({
+        transItems: line.itemId,
+        transUser: employeeId,
+        transLocation: line.itemLocation ?? 1,
+        transInventory: -line.quantityPurchased,
+        transComment: "Receiving cancelled",
+      }).run();
+    }
+    tx.delete(receivings).where(eq(receivings.receivingId, receivingId)).run();
+  });
+}

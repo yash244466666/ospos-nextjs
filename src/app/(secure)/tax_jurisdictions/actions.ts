@@ -38,3 +38,7 @@ export async function deleteTaxJurisdictionAction(jurisdictionId: number) {
   db.update(taxJurisdictions).set({ deleted: true }).where(eq(taxJurisdictions.jurisdictionId, jurisdictionId)).run();
   revalidatePath("/tax_jurisdictions");
 }
+import { getAllJurisdictions, getJurisdiction, saveJurisdiction } from "@/lib/taxes/repository";
+export async function getJurisdictionRowAction(id: number) { await requirePermission("tax_jurisdictions"); return getJurisdiction(id); }
+export async function saveJurisdictionAction(input: any) { await requirePermission("tax_jurisdictions"); return saveJurisdiction(input); }
+export { getAllJurisdictions };

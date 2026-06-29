@@ -17,6 +17,7 @@ export interface ReceivingLine {
   costPrice: number;
   stockType: number;
   isSerialized: boolean;
+  receivingQuantity: number;
   total: number;
 }
 

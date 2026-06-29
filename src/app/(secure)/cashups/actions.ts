@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/with-permission";
-import { deleteCashup, saveCashup } from "@/lib/cashups/repository";
+import { deleteCashup, saveCashup, search as searchCashups, getInfo as getCashupInfo, getTotalRows, getEmptyRow } from "@/lib/cashups/repository";
 
 export async function saveCashupAction(formData: FormData) {
   await requirePermission("cashups");
@@ -37,3 +37,19 @@ export async function deleteCashupAction(cashupId: number) {
   deleteCashup(cashupId);
   revalidatePath("/cashups");
 }
+
+export async function searchCashupsAction(filters: any) {
+  await requirePermission("cashups");
+  return searchCashups(filters);
+}
+
+export async function getCashupRowAction(cashupId: number) {
+  await requirePermission("cashups");
+  return getCashupInfo(cashupId);
+}
+
+export async function getCashupTotalRowsAction() {
+  return getTotalRows();
+}
+
+export { getEmptyRow };

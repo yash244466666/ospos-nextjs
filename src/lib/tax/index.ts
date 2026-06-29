@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
 import { getDbSync } from "@/lib/db";
-import { items, itemsTaxes, taxCodeLinks, taxJurisdictions } from "@/db/schema";
-import { getConfigBool, getConfigNumber, taxDecimals, totalsDecimals } from "@/lib/config";
-import { ROUNDING_MODE } from "@/lib/constants";
+import { items, itemsTaxes, taxCodeLinks, taxJurisdictions, taxCodes, taxCategories, customers, sales } from "@/db/schema";
+import { getConfigBool, getConfigNumber, getConfig, taxDecimals, totalsDecimals } from "@/lib/config";
+import { ROUNDING_MODE, TAX_TYPE } from "@/lib/constants";
 
 export interface CartLine {
   itemId: number;
@@ -12,6 +12,7 @@ export interface CartLine {
   discountType: number;
   taxCategoryId: number | null;
   isSerialized: boolean;
+  stockType?: number;
 }
 
 export interface ItemTax {
@@ -68,6 +69,29 @@ export function roundNumber(value: number, mode: number, decimals: number): numb
   }
 }
 
+export function getRoundingOptions(): { value: number; label: string }[] {
+  return [
+    { value: ROUNDING_MODE.HALF_UP, label: "Half Up" },
+    { value: ROUNDING_MODE.HALF_DOWN, label: "Half Down" },
+    { value: ROUNDING_MODE.HALF_EVEN, label: "Half Even" },
+    { value: ROUNDING_MODE.HALF_ODD, label: "Half Odd" },
+    { value: ROUNDING_MODE.ROUND_UP, label: "Round Up" },
+    { value: ROUNDING_MODE.ROUND_DOWN, label: "Round Down" },
+    { value: ROUNDING_MODE.HALF_FIVE, label: "Half Five" },
+  ];
+}
+
+export function getTaxTypes(): Record<string, number> {
+  return { INCLUDED: TAX_TYPE.INCLUDED, EXCLUDED: TAX_TYPE.EXCLUDED };
+}
+
+export function getTaxTypeOptions(selected?: number): { value: number; label: string }[] {
+  return [
+    { value: TAX_TYPE.INCLUDED, label: "Included" },
+    { value: TAX_TYPE.EXCLUDED, label: "Excluded" },
+  ];
+}
+
 export function getItemTotal(quantity: number, price: number, discount: number, discountType: number, includeDiscount: boolean): number {
   let total = quantity * price;
   if (includeDiscount) {
@@ -78,6 +102,22 @@ export function getItemTotal(quantity: number, price: number, discount: number, 
     }
   }
   return total;
+}
+
+export function getItemSalesTax(quantity: number, price: number, discount: number, discountType: number, taxPercent: number, roundingCode: number, taxDec = 2): number {
+  const total = getItemTotal(quantity, price, discount, discountType, true);
+  const tax = total * (taxPercent / 100);
+  return roundNumber(tax, roundingCode, taxDec);
+}
+
+export function getTaxForAmount(taxBasis: number, percent: number, roundingMode: number, decimals: number): number {
+  return roundNumber(taxBasis * (percent / 100), roundingMode, decimals);
+}
+
+export function getIncludedTax(quantity: number, price: number, discountPercent: number, discountType: number, taxPercent: number, taxDec = 2, roundingCode: number = ROUNDING_MODE.HALF_UP): number {
+  const total = getItemTotal(quantity, price, discountPercent, discountType, true);
+  const exclBase = total / (1 + taxPercent / 100);
+  return roundNumber(total - exclBase, roundingCode, taxDec);
 }
 
 export function getTaxes(cart: CartLine[]): { taxes: SaleTaxGroup[]; itemTaxes: ItemTax[] } {
@@ -164,5 +204,107 @@ export function getTaxes(cart: CartLine[]): { taxes: SaleTaxGroup[]; itemTaxes: 
   return { taxes, itemTaxes };
 }
 
+export function updateTaxes(taxes: SaleTaxGroup[], newTax: SaleTaxGroup): SaleTaxGroup[] {
+  const existing = taxes.find((t) => t.taxGroup === newTax.taxGroup);
+  if (existing) {
+    existing.saleTaxBasis = roundNumber(existing.saleTaxBasis + newTax.saleTaxBasis, ROUNDING_MODE.HALF_UP, 4);
+    existing.saleTaxAmount = roundNumber(existing.saleTaxAmount + newTax.saleTaxAmount, ROUNDING_MODE.HALF_UP, 4);
+  } else {
+    taxes.push(newTax);
+  }
+  return taxes;
+}
+
+export function applyInvoiceTaxing(taxes: SaleTaxGroup[]): SaleTaxGroup[] {
+  return taxes.sort((a, b) => a.taxGroup.localeCompare(b.taxGroup));
+}
+
+export function roundTaxes(taxes: SaleTaxGroup[]): SaleTaxGroup[] {
+  return taxes.map((t) => ({
+    ...t,
+    saleTaxAmount: roundNumber(t.saleTaxAmount, t.roundCode, t.taxType === 0 ? taxDecimals() : totalsDecimals()),
+  }));
+}
+
+export function applyDestinationTax(item: CartLine, city: string | null, state: string | null, salesTaxCodeId: number | null, registerMode: string, saleId: number | null, taxes: SaleTaxGroup[], itemTaxes: ItemTax[], line: number): boolean {
+  const db = getDbSync();
+  const codeId = salesTaxCodeId ?? getConfigNumber("default_tax_code", 0);
+  if (!codeId) return false;
+  const codes = db.select().from(taxCodes).where(eq(taxCodes.taxCodeId, codeId)).get();
+  if (!codes) return false;
+  const links = db
+    .select({
+      taxRate: taxCodeLinks.taxRate,
+      roundCode: taxCodeLinks.roundCode,
+      cascadeSequence: taxCodeLinks.cascadeSequence,
+      taxGroup: taxJurisdictions.taxGroup,
+      jurisdictionName: taxJurisdictions.jurisdictionName,
+      taxType: taxJurisdictions.taxType,
+    })
+    .from(taxCodeLinks)
+    .innerJoin(taxJurisdictions, eq(taxJurisdictions.jurisdictionId, taxCodeLinks.jurisdictionId))
+    .where(eq(taxCodeLinks.taxCodeId, codeId))
+    .all();
+  const basis = getItemTotal(item.quantity, item.price, item.discount, item.discountType, true);
+  let cumulativeBasis = basis;
+  for (const link of links) {
+    const taxAmount = roundNumber(cumulativeBasis * (link.taxRate / 100), link.roundCode, taxDecimals());
+    const groupKey = `X${link.taxRate}% ${link.jurisdictionName}`;
+    updateTaxes(taxes, {
+      taxType: link.taxType === "INCLUDED" ? 0 : 1,
+      roundCode: link.roundCode,
+      taxGroup: groupKey,
+      saleTaxBasis: cumulativeBasis,
+      saleTaxAmount: taxAmount,
+    });
+    itemTaxes.push({
+      itemId: item.itemId,
+      line,
+      name: link.jurisdictionName,
+      percent: link.taxRate,
+      taxType: link.taxType === "INCLUDED" ? 0 : 1,
+      roundCode: link.roundCode,
+      cascadeSequence: link.cascadeSequence,
+      itemTaxAmount: taxAmount,
+    });
+    if (link.cascadeSequence > 0) {
+      cumulativeBasis = roundNumber(cumulativeBasis + taxAmount, ROUNDING_MODE.HALF_UP, 4);
+    }
+  }
+  return true;
+}
+
+export function getApplicableTaxCode(registerMode: string, city: string | null, state: string | null, salesTaxCodeId: number | null): { taxCodeId: number; taxCode: string } | null {
+  const db = getDbSync();
+  const codeId = salesTaxCodeId ?? getConfigNumber("default_tax_code", 0);
+  if (!codeId) return null;
+  const row = db.select().from(taxCodes).where(eq(taxCodes.taxCodeId, codeId)).get();
+  if (!row) return null;
+  return { taxCodeId: row.taxCodeId, taxCode: row.taxCode };
+}
+
+export function clean(s: string | null | undefined): string {
+  if (!s) return "";
+  return s.replace(/[<>;"']/g, "").trim();
+}
+
+export function getTaxCodeOptions(): { taxCodeId: number; taxCode: string; taxCodeName: string }[] {
+  return getDbSync().select().from(taxCodes).where(eq(taxCodes.deleted, false)).all();
+}
+
+export function getTaxJurisdictionOptions(): { jurisdictionId: number; jurisdictionName: string }[] {
+  return getDbSync().select().from(taxJurisdictions).where(eq(taxJurisdictions.deleted, false)).all();
+}
+
+export function getTaxCategoryOptions(): { taxCategoryId: number; taxCategory: string }[] {
+  return getDbSync().select().from(taxCategories).where(eq(taxCategories.deleted, false)).all();
+}
+
+export function getTaxCategoryUsage(taxCategoryId: number): number {
+  return getDbSync().select({ c: items.itemId }).from(items).where(eq(items.taxCategoryId, taxCategoryId)).all().length;
+}
+
 export { ROUNDING_MODE };
-void getConfigNumber;
+void customers;
+void sales;
+void getConfig;

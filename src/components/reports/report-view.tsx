@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ReportDef } from "@/lib/reports/registry";
+import { BarChart, HBarChart, LineChart, PieChart } from "./charts";
 
 interface Props {
   def: ReportDef;
@@ -21,6 +22,23 @@ function fmt(v: unknown): string {
     return d.toLocaleString();
   }
   return String(v);
+}
+
+function ChartFor({ def, rows }: { def: ReportDef; rows: Record<string, unknown>[] }) {
+  if (!def.chart) return null;
+  const labelKey = def.columns[0]?.name ?? "label";
+  const valueKey = def.columns.find((c) => c.name !== labelKey)?.name ?? "value";
+  const data = rows.map((r) => ({
+    label: String(r[labelKey] ?? ""),
+    value: Number(r[valueKey] ?? 0),
+  }));
+  switch (def.chart) {
+    case "bar": return <BarChart data={data} />;
+    case "hbar": return <HBarChart data={data} />;
+    case "line": return <LineChart data={data} />;
+    case "pie": return <PieChart data={data} />;
+  }
+  return null;
 }
 
 export default function ReportView({ def, rows, initialStart, initialEnd }: Props) {
@@ -46,6 +64,11 @@ export default function ReportView({ def, rows, initialStart, initialEnd }: Prop
           <Link href={`/reports/${def.key}/export?start=${encodeURIComponent(initialStart)}&end=${encodeURIComponent(initialEnd)}`}
             className="bg-gray-200 px-3 py-1 rounded text-sm">Export CSV</Link>
         </form>
+      )}
+      {def.chart && rows.length > 0 && (
+        <div className="mb-4 p-3 border rounded bg-white">
+          <ChartFor def={def} rows={rows} />
+        </div>
       )}
       {rows.length === 0 ? (
         <div className="text-gray-500">No data.</div>

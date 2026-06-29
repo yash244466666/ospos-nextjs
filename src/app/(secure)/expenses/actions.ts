@@ -43,3 +43,8 @@ export async function listExpensesAction() {
   const db = getDbSync();
   return db.select().from(expenses).where(eq(expenses.deleted, false)).all();
 }
+import { getAll, getInfo as info, search, getTotalRows, getEmptyRow } from "@/lib/expenses/repository";
+export async function searchExpensesAction(filters: any) { await requirePermission("expenses"); return search(filters); }
+export async function getExpenseRowAction(expenseId: number) { await requirePermission("expenses"); return info(expenseId); }
+export async function getExpenseTotalRowsAction() { return getTotalRows(); }
+export { getAll, getEmptyRow };

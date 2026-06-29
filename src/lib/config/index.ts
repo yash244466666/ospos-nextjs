@@ -1,6 +1,8 @@
 import { eq, sql } from "drizzle-orm";
 import { getDbSync } from "@/lib/db";
 import { appConfig } from "@/db/schema";
+import { ENCRYPTED_KEYS } from "./tabs";
+import { decrypt as decryptConfig } from "@/lib/encryption";
 
 let cache: Map<string, string> | null = null;
 let loadingAt: number = 0;
@@ -29,6 +31,17 @@ export function getConfigNumber(key: string, defaultValue = 0): number {
   if (v === "") return defaultValue;
   const n = Number(v);
   return Number.isNaN(n) ? defaultValue : n;
+}
+
+export function getConfigDecrypted(key: string, defaultValue = ""): string {
+  const v = getConfig(key, "");
+  if (!v) return defaultValue;
+  if (!ENCRYPTED_KEYS.has(key)) return v;
+  try {
+    return decryptConfig(v) ?? defaultValue;
+  } catch {
+    return defaultValue;
+  }
 }
 
 export function setConfig(key: string, value: string): void {

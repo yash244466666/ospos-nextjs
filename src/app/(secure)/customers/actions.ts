@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/with-permission";
 import {
   saveCustomer, deleteCustomer, searchCustomers, getCustomer,
-  emailExists, accountNumberExists,
+  emailExists, accountNumberExists, suggestCustomers,
 } from "@/lib/persons/repository";
 import { hash } from "bcryptjs";
 
@@ -57,6 +57,26 @@ export async function deleteCustomerAction(personId: number) {
 export async function searchCustomersAction(search: string) {
   await requirePermission("customers");
   return searchCustomers(search);
+}
+
+export async function getCustomerRowAction(personId: number) {
+  await requirePermission("customers");
+  return getCustomer(personId);
+}
+
+export async function suggestCustomersAction(term: string) {
+  await requirePermission("customers");
+  return suggestCustomers(term, 10);
+}
+
+export async function checkEmailAction(email: string, excludeId: number | null) {
+  await requirePermission("customers");
+  return emailExists(email, excludeId);
+}
+
+export async function checkAccountNumberAction(accountNumber: string, excludeId: number | null) {
+  await requirePermission("customers");
+  return accountNumberExists(accountNumber, excludeId);
 }
 
 export { getCustomer };

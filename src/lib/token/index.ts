@@ -1,19 +1,21 @@
-import { acquireNextSequence } from "@/lib/config";
+import { acquireNextSequence, getConfig } from "@/lib/config";
 import { getDbSync } from "@/lib/db";
-import { count, eq, isNotNull, sql } from "drizzle-orm";
-import { sales } from "@/db/schema";
+import { and, count, eq, gte, isNotNull, sql } from "drizzle-orm";
+import { sales, people, customers } from "@/db/schema";
 
 const TOKEN_RE = /\{([A-Z]{2,4})(?::(\d+))?\}/g;
+const STRFTIME_RE = /\{(?:d|D|j|l|S|w|z|Z|F|m|M|n|t|L|Y|y|a|A|g|G|h|H|i|s|c|r|U)/g;
 
-interface TokenContext {
+export interface TokenContext {
   saleId?: number;
   customerId?: number;
   save?: boolean;
 }
 
 export async function render(format: string, ctx: TokenContext = {}): Promise<string> {
-  const matches = Array.from(format.matchAll(TOKEN_RE));
-  let result = format;
+  const withStrftime = format.replace(STRFTIME_RE, (m) => applyStrftime(m));
+  const matches = Array.from(withStrftime.matchAll(TOKEN_RE));
+  let result = withStrftime;
   for (const m of matches) {
     const [whole, code, len] = m;
     const length = len ? parseInt(len, 10) : 0;
@@ -22,6 +24,86 @@ export async function render(format: string, ctx: TokenContext = {}): Promise<st
     result = result.replace(whole, padded);
   }
   return result;
+}
+
+function applyStrftime(token: string): string {
+  const d = new Date();
+  const datefmt = getConfig("dateformat", "Y-m-d");
+  const timefmt = getConfig("timeformat", "H:i:s");
+  const fmt = datefmt + " " + timefmt;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const map: Record<string, string> = {
+    d: pad(d.getDate()),
+    D: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()],
+    j: pad(d.getDate()),
+    l: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getDay()],
+    S: ["st", "nd", "rd", "th"][Math.min(d.getDate() % 10, 3)] ?? "th",
+    w: String(d.getDay()),
+    Y: String(d.getFullYear()),
+    y: String(d.getFullYear()).slice(2),
+    m: pad(d.getMonth() + 1),
+    n: String(d.getMonth() + 1),
+    F: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][d.getMonth()],
+    M: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()],
+    t: String(new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()),
+    H: pad(d.getHours()),
+    G: pad(d.getHours()),
+    h: pad(d.getHours() % 12 || 12),
+    i: pad(d.getMinutes()),
+    s: pad(d.getSeconds()),
+    a: d.getHours() < 12 ? "am" : "pm",
+    A: d.getHours() < 12 ? "AM" : "PM",
+    g: String(d.getHours() % 12 || 12),
+    z: `+${pad(Math.abs(d.getTimezoneOffset() / 60))}`,
+  };
+  return map[token] ?? token;
+}
+
+export function scan(text: string): { code: string; length: number }[] {
+  const out: { code: string; length: number }[] = [];
+  for (const m of text.matchAll(TOKEN_RE)) {
+    const code = m[1];
+    const len = m[2] ? parseInt(m[2], 10) : 0;
+    out.push({ code, length: len });
+  }
+  return out;
+}
+
+export function parseBarcode(input: string, formats: { barcode_formats?: string } = {}): { itemIdOrNumber: string; quantity: number; price: number | null } | null {
+  const trimmed = input.trim();
+  let formatsArr: { name: string; value: string }[] = [];
+  try {
+    if (formats.barcode_formats) {
+      const parsed = JSON.parse(formats.barcode_formats);
+      if (Array.isArray(parsed)) {
+        formatsArr = parsed.filter((f) => f && f.name && f.value);
+      }
+    }
+  } catch { /* ignore */ }
+
+  for (const fmt of formatsArr) {
+    const re = new RegExp(fmt.value, "i");
+    const m = trimmed.match(re);
+    if (m) {
+      const groups = m.slice(1);
+      const fieldNames = fmt.name.split("|");
+      const fields: Record<string, string> = {};
+      for (let i = 0; i < fieldNames.length; i++) {
+        fields[fieldNames[i]] = groups[i] ?? "";
+      }
+      const itemIdOrNumber = fields.id || fields.item || fields.item_id || fields.item_number || fields.number || "";
+      const quantity = fields.qty || fields.quantity ? parseFloat(fields.qty || fields.quantity) : 1;
+      const price = fields.price ? parseFloat(fields.price) : null;
+      if (itemIdOrNumber) return { itemIdOrNumber, quantity, price };
+    }
+  }
+
+  const m = trimmed.match(/^(KIT|POS)\s+(\d+)$/i);
+  if (m) return { itemIdOrNumber: m[2], quantity: 1, price: null };
+  if (/^\d+$/.test(trimmed) && !trimmed.startsWith("0")) {
+    return { itemIdOrNumber: trimmed, quantity: 1, price: null };
+  }
+  return { itemIdOrNumber: trimmed, quantity: 1, price: null };
 }
 
 async function resolveToken(code: string, ctx: TokenContext): Promise<string> {
@@ -42,7 +124,7 @@ async function resolveToken(code: string, ctx: TokenContext): Promise<string> {
       const n = db
         .select({ c: count() })
         .from(sales)
-        .where(sql`${sales.saleTime} >= ${yearStart} AND ${sales.invoiceNumber} IS NOT NULL`)
+        .where(and(gte(sales.saleTime, yearStart), isNotNull(sales.invoiceNumber)))
         .get();
       return String((n?.c ?? 0) + 1);
     }
@@ -51,7 +133,7 @@ async function resolveToken(code: string, ctx: TokenContext): Promise<string> {
       const n = db
         .select({ c: count() })
         .from(sales)
-        .where(sql`${sales.saleTime} >= ${yearStart} AND ${sales.quoteNumber} IS NOT NULL`)
+        .where(and(gte(sales.saleTime, yearStart), isNotNull(sales.quoteNumber)))
         .get();
       return String((n?.c ?? 0) + 1);
     }
@@ -63,17 +145,19 @@ async function resolveToken(code: string, ctx: TokenContext): Promise<string> {
         .get();
       return String(n?.c ?? 0);
     }
-    case "CU":
+    case "CU": {
+      if (ctx.customerId) {
+        const p = db.select().from(people).where(eq(people.personId, ctx.customerId)).get();
+        if (p) return `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim();
+      }
       return "";
+    }
     default:
       return code;
   }
 }
 
-export function parseBarcode(input: string): { type: string; value: string } | null {
-  const m = input.match(/^(KIT|POS)\s+#?(\d+)$/i);
-  if (m) return { type: m[1].toUpperCase(), value: m[2] };
-  return null;
-}
-
 export const TOKEN_CODES = ["CO", "ISEQ", "QSEQ", "WSEQ", "YCO", "YQO", "SCO", "CU"] as const;
+
+void sql;
+void customers;

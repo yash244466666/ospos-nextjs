@@ -6,6 +6,15 @@ import { requirePermission } from "@/lib/auth/with-permission";
 import {
   deleteDefinition,
   saveDefinition,
+  listDefinitions,
+  getDefinition,
+  searchDefinitions,
+  getTotalDefinitionRows,
+  getAttributesByItem,
+  saveAttributeValue,
+  deleteAttributeValue,
+  listDropdownValues as getDropdownValues,
+  getSuggestions,
   DEFINITION_TYPES,
   SHOW_IN_ITEMS,
   SHOW_IN_SALES,
@@ -51,3 +60,37 @@ export async function deleteAttributeAction(definitionId: number) {
   deleteDefinition(definitionId);
   revalidatePath("/attributes");
 }
+
+export async function searchAttributesAction(term: string) {
+  await requirePermission("attributes");
+  return searchDefinitions(term);
+}
+
+export async function getAttributeRowAction(definitionId: number) {
+  await requirePermission("attributes");
+  return getDefinition(definitionId);
+}
+
+export async function getAttributeValuesAction(definitionId: number) {
+  await requirePermission("attributes");
+  return getDropdownValues(definitionId);
+}
+
+export async function saveAttributeValueAction(definitionId: number, itemId: number, value: string) {
+  await requirePermission("attributes");
+  saveAttributeValue({ definitionId, itemId, attributeValue: value });
+  revalidatePath(`/items/${itemId}`);
+}
+
+export async function deleteAttributeValueAction(attributeId: number) {
+  await requirePermission("attributes");
+  deleteAttributeValue(attributeId);
+  revalidatePath("/attributes");
+}
+
+export async function getAttributesByItemAction(itemId: number) {
+  await requirePermission("attributes");
+  return getAttributesByItem(itemId);
+}
+
+export { listDefinitions, getTotalDefinitionRows, getSuggestions };

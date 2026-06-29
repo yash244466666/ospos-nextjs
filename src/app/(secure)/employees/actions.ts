@@ -72,4 +72,31 @@ export async function deleteEmployeeAction(personId: number) {
   revalidatePath("/employees");
 }
 
+export async function searchEmployeesAction(term: string) {
+  await requirePermission("employees");
+  return searchEmployees(term);
+}
+
+export async function getEmployeeRowAction(personId: number) {
+  await requirePermission("employees");
+  return getEmployee(personId);
+}
+
+export async function checkUsernameAction(username: string, excludeId: number | null) {
+  await requirePermission("employees");
+  return usernameExists(username, excludeId);
+}
+
+export async function changePasswordAction(oldPassword: string, newPassword: string) {
+  const session = await requirePermission("home");
+  const { changePassword } = await import("@/lib/employees/repository");
+  const { verifyPassword } = await import("@/lib/auth/password");
+  const emp = getEmployee(session!.user.personId as number);
+  if (!emp) throw new Error("Employee not found");
+  if (!verifyPassword(oldPassword, emp.password)) throw new Error("Old password incorrect");
+  const hashed = await hash(newPassword, 10);
+  changePassword(session!.user.personId as number, hashed);
+  return { ok: true };
+}
+
 export { searchEmployees, getEmployee, listAllPermissions, listEmployeeGrants };

@@ -52,3 +52,10 @@ export async function deleteGiftcardAction(giftcardId: number) {
   db.update(giftcards).set({ deleted: true }).where(eq(giftcards.giftcardId, giftcardId)).run();
   revalidatePath("/giftcards");
 }
+import { getAll as listAll, getInfo as info, getSearchSuggestions, getTotalRows, search } from "@/lib/giftcards/repository";
+
+export async function searchGiftcardsAction(term: string) { await requirePermission("giftcards"); return search(term); }
+export async function suggestGiftcardsAction(term: string) { await requirePermission("giftcards"); return getSearchSuggestions(term); }
+export async function getGiftcardRowAction(giftcardId: number) { await requirePermission("giftcards"); return info(giftcardId); }
+export async function getGiftcardTotalRowsAction() { return getTotalRows(); }
+export { listAll };

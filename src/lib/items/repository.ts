@@ -414,3 +414,140 @@ export function bulkUpdate(itemIds: number[], fields: Partial<ItemRow>, employee
 
 export { attributeDefinitions, attributeLinks, attributeValues };
 void people;
+
+export function getItemInfo(itemId: number): ItemRow | null {
+  return getItemById(itemId);
+}
+
+export function getInfoByIdOrNumber(input: string, includeDeleted = false): ItemRow | null {
+  const item = getItemByIdOrNumber(input);
+  if (!item) return null;
+  if (!includeDeleted && item.deleted) return null;
+  return item;
+}
+
+export function getItemIdByNumber(itemNumber: string, ignoreDeleted = false, deleted = false): number | null {
+  const row = getItemByNumber(itemNumber);
+  if (!row) return null;
+  if (ignoreDeleted && row.deleted === deleted) return null;
+  return row.itemId;
+}
+
+export function getMultipleInfo(itemIds: number[], locationId?: number): ItemRow[] {
+  const db = getDbSync();
+  const rows = db.select().from(items).where(sql`${items.itemId} IN (${itemIds.join(",") || "NULL"})`).all() as ItemRow[];
+  if (!locationId) return rows;
+  const qrows = db.select().from(itemQuantities)
+    .where(sql`${itemQuantities.itemId} IN (${itemIds.join(",") || "NULL"}) AND ${itemQuantities.locationId} = ${locationId}`).all();
+  const map = new Map(qrows.map((q) => [q.itemId, q.quantity]));
+  return rows.map((r) => ({ ...r, quantity: map.get(r.itemId) ?? 0 })) as ItemRow[];
+}
+
+export function changeCostPrice(itemId: number, itemsReceived: number, newPrice: number, oldPrice: number, employeeId: number): void {
+  const db = getDbSync();
+  const existing = db.select().from(items).where(eq(items.itemId, itemId)).get();
+  if (!existing) return;
+  const totalQty = itemsReceived;
+  if (totalQty <= 0) {
+    db.update(items).set({ costPrice: newPrice }).where(eq(items.itemId, itemId)).run();
+    return;
+  }
+  const oldTotal = existing.costPrice * totalQty;
+  const newTotal = newPrice * itemsReceived;
+  const totalCost = oldTotal + newTotal;
+  const totalUnits = totalQty * 2;
+  const avg = totalCost / totalUnits;
+  db.update(items).set({ costPrice: avg }).where(eq(items.itemId, itemId)).run();
+  void employeeId;
+}
+
+export function updateItemNumber(itemId: number, itemNumber: string): void {
+  getDbSync().update(items).set({ itemNumber: itemNumber || null }).where(eq(items.itemId, itemId)).run();
+}
+
+export function updateItemName(itemId: number, name: string): void {
+  getDbSync().update(items).set({ name }).where(eq(items.itemId, itemId)).run();
+}
+
+export function updateItemDescription(itemId: number, description: string): void {
+  getDbSync().update(items).set({ description: description || null }).where(eq(items.itemId, itemId)).run();
+}
+
+export function getItemName(asName = true): unknown {
+  if (asName) return sql<string>`${items.name}`;
+  return sql<string>`COALESCE(${items.name}, '')`;
+}
+
+export function getAllItems(stockLocationId?: number, limit = 100, offset = 0): ItemRow[] {
+  const db = getDbSync();
+  const rows = db.select().from(items).where(eq(items.deleted, false)).limit(limit).offset(offset).all() as ItemRow[];
+  if (!stockLocationId) return rows;
+  const ids = rows.map((r) => r.itemId);
+  if (!ids.length) return rows;
+  const qrows = db.select().from(itemQuantities)
+    .where(sql`${itemQuantities.itemId} IN (${ids.join(",")}) AND ${itemQuantities.locationId} = ${stockLocationId}`).all();
+  const map = new Map(qrows.map((q) => [q.itemId, q.quantity]));
+  return rows.map((r) => ({ ...r, quantity: map.get(r.itemId) ?? 0 })) as ItemRow[];
+}
+
+export function getStockSearchSuggestions(search: string, limit = 25): ItemRow[] {
+  return suggestItems(search, { stockOnly: true, limit });
+}
+
+export function getKitSearchSuggestions(search: string, limit = 25): ItemRow[] {
+  return suggestItems(search, { kitsOnly: true, limit });
+}
+
+export function getLowSellSuggestions(search: string, limit = 25): ItemRow[] {
+  const db = getDbSync();
+  const pattern = `%${search}%`;
+  return db.select().from(items)
+    .where(and(
+      eq(items.deleted, false),
+      or(like(items.name, pattern), like(items.itemNumber, pattern))!
+    ))
+    .limit(limit)
+    .all() as ItemRow[];
+}
+
+export function getLocationSuggestions(search: string): string[] {
+  const db = getDbSync();
+  const rows = db.select({ c: sql<string>`${items.category}` })
+    .from(items)
+    .where(and(eq(items.deleted, false), like(items.category, `%${search}%`), ne(items.category, "")))
+    .limit(10)
+    .all();
+  const set = new Set<string>();
+  for (const r of rows) if (r.c) set.add(r.c);
+  return Array.from(set);
+}
+
+export function getCategories(): string[] {
+  const db = getDbSync();
+  const rows = db.selectDistinct({ c: items.category }).from(items)
+    .where(and(eq(items.deleted, false), ne(items.category, ""))).all();
+  return rows.map((r) => r.c ?? "").filter(Boolean);
+}
+
+export function getTotalRows(): number {
+  const db = getDbSync();
+  const r = db.select({ c: sql<number>`count(*)` }).from(items).where(eq(items.deleted, false)).get();
+  return r?.c ?? 0;
+}
+
+export function undeleteItem(itemId: number): void {
+  getDbSync().update(items).set({ deleted: false }).where(eq(items.itemId, itemId)).run();
+}
+
+export function deleteItemList(itemIds: number[], employeeId: number): void {
+  for (const id of itemIds) deleteItem(id, employeeId);
+}
+
+export function updateMultiple(itemIds: number[], fields: Partial<ItemRow>): void {
+  const db = getDbSync();
+  db.transaction((tx) => {
+    for (const id of itemIds) {
+      tx.update(items).set(fields).where(eq(items.itemId, id)).run();
+    }
+  });
+}

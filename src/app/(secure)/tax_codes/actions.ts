@@ -34,3 +34,9 @@ export async function deleteTaxCodeAction(taxCodeId: number) {
   db.update(taxCodes).set({ deleted: true }).where(eq(taxCodes.taxCodeId, taxCodeId)).run();
   revalidatePath("/tax_codes");
 }
+import { getAllTaxCodes, getTaxCode, getTaxCodeSearchSuggestions, getTaxCodeLinks, saveTaxCode } from "@/lib/taxes/repository";
+export async function suggestTaxCodesAction(term: string) { await requirePermission("tax_codes"); return getTaxCodeSearchSuggestions(term); }
+export async function getTaxCodeRowAction(id: number) { await requirePermission("tax_codes"); return getTaxCode(id); }
+export async function getTaxCodeLinksAction(taxCodeId: number) { await requirePermission("tax_codes"); return getTaxCodeLinks(taxCodeId); }
+export async function saveTaxCodeWithLinksAction(input: any) { await requirePermission("tax_codes"); return saveTaxCode(input); }
+export { getAllTaxCodes };

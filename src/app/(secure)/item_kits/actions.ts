@@ -68,3 +68,8 @@ export async function listItemsForSelectAction() {
     .where(and(eq(items.deleted, false)))
     .all();
 }
+import { getAll as listAll, getInfo as info, search, getTotalRows } from "@/lib/item_kits/repository";
+export async function searchItemKitsAction(term: string) { await requirePermission("item_kits"); return search(term); }
+export async function getItemKitRowAction(itemKitId: number) { await requirePermission("item_kits"); return info(itemKitId); }
+export async function getItemKitTotalRowsAction() { return getTotalRows(); }
+export { listAll };

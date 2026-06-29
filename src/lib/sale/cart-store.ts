@@ -2,15 +2,9 @@ import { eq } from "drizzle-orm";
 import { getDbSync } from "@/lib/db";
 import { cartSessions } from "@/db/schema";
 import { auth } from "@/lib/auth/options";
-import type { SaleCart, SalePayment } from "./types";
+import type { CartLine, SaleCart, SalePayment } from "./types";
 
-const SESSION_TTL_MS = 1000 * 60 * 60 * 24;
-
-function getSessionKey(): string {
-  const cookie = (typeof document !== "undefined" && document.cookie) || "";
-  const m = cookie.match(/cart_session=([^;]+)/);
-  return m?.[1] ?? "";
-}
+export type { CartLine, SalePayment, SaleCart };
 
 export async function getCart(): Promise<SaleCart> {
   const session = await auth();
@@ -20,7 +14,7 @@ export async function getCart(): Promise<SaleCart> {
   const sessionId = `cart:${personId}`;
   const row = db.select().from(cartSessions).where(eq(cartSessions.sessionId, sessionId)).get();
   if (!row) {
-    const empty: SaleCart = emptyCart();
+    const empty = emptyCart();
     db.insert(cartSessions).values({
       sessionId,
       personId,
@@ -70,35 +64,10 @@ export function emptyCart(): SaleCart {
     cashRounding: false,
     cashMode: false,
     allowTempItems: false,
+    paymentType: "Cash",
   };
 }
 
 export async function clearCart(): Promise<void> {
   await saveCart(emptyCart());
 }
-
-export interface CartLine {
-  line: number;
-  itemId: number;
-  itemLocation: number;
-  itemName: string;
-  itemNumber: string | null;
-  description: string;
-  serialnumber: string;
-  quantity: number;
-  discount: number;
-  discountType: number;
-  price: number;
-  costPrice: number;
-  stockType: number;
-  taxCategoryId: number | null;
-  taxedFlag: string;
-  printOption: number;
-  isSerialized: boolean;
-  total: number;
-  discountedTotal: number;
-}
-
-export type { SalePayment };
-void getSessionKey;
-void SESSION_TTL_MS;
