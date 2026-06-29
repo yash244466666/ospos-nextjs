@@ -6,21 +6,50 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:generate:sqlite": "drizzle-kit generate --config=drizzle.config.sqlite.ts",
+    "db:generate:mysql": "drizzle-kit generate --config=drizzle.config.mysql.ts",
+    "db:generate": "drizzle-kit generate --config=drizzle.config.sqlite.ts",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts",
+    "db:studio": "drizzle-kit studio --config=drizzle.config.sqlite.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@auth/drizzle-adapter": "^1.11.2",
+    "@react-pdf/renderer": "^4.5.1",
+    "@tanstack/react-table": "^8.21.3",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.11.1",
+    "bwip-js": "^4.11.1",
+    "drizzle-orm": "^0.45.2",
+    "mysql2": "^3.22.5",
     "next": "16.2.9",
+    "next-auth": "^5.0.0-beta.31",
+    "next-intl": "^4.13.0",
+    "nodemailer": "^7.0.13",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "react-hook-form": "^7.80.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.22.4",
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   }
 }

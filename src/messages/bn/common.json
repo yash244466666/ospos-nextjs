@@ -1,0 +1,71 @@
+{
+  "common": {
+    "save": "সংরক্ষণ",
+    "cancel": "বাতিল",
+    "delete": "মুছুন",
+    "edit": "সম্পাদনা",
+    "search": "অনুসন্ধান",
+    "actions": "ক্রিয়া",
+    "loading": "লোড হচ্ছে...",
+    "noResults": "কোনো ফলাফল নেই",
+    "confirm": "নিশ্চিত করুন",
+    "yes": "হ্যাঁ",
+    "no": "না",
+    "back": "পিছনে",
+    "next": "পরবর্তী",
+    "close": "বন্ধ করুন",
+    "logout": "লগআউট"
+  },
+  "login": {
+    "username": "ব্যবহারকারী নাম",
+    "password": "পাসওয়ার্ড",
+    "signIn": "সাইন ইন",
+    "invalid": "ভুল ব্যবহারকারী নাম বা পাসওয়ার্ড",
+    "title": "ওএসপিওএস লগইন"
+  },
+  "modules": {
+    "config": "কনফিগ",
+    "customers": "ক্রেতা",
+    "employees": "কর্মচারী",
+    "giftcards": "গিফট কার্ড",
+    "items": "পণ্য",
+    "item_kits": "পণ্য কিট",
+    "messages": "বার্তা",
+    "receivings": "গ্রহণ",
+    "reports": "রিপোর্ট",
+    "sales": "বিক্রয়",
+    "suppliers": "সরবরাহকারী",
+    "attributes": "বৈশিষ্ট্য",
+    "cashups": "ক্যাশ আপ",
+    "expenses": "খরচ",
+    "taxes": "কর"
+  },
+  "items": {
+    "name": "নাম",
+    "category": "শ্রেণী",
+    "costPrice": "ক্রয় মূল্য",
+    "unitPrice": "বিক্রয় মূল্য",
+    "quantity": "পরিমাণ",
+    "reorderLevel": "পুনরায় অর্ডার স্তর",
+    "itemNumber": "পণ্য নম্বর"
+  },
+  "sales": {
+    "register": "বিক্রয় রেজিস্টার",
+    "customer": "ক্রেতা",
+    "total": "মোট",
+    "subtotal": "সাবটোটাল",
+    "discount": "ছাড়",
+    "tax": "কর",
+    "complete": "সম্পন্ন করুন",
+    "suspend": "স্থগিত করুন",
+    "cash": "নগদ",
+    "credit": "ক্রেডিট",
+    "debit": "ডেবিট",
+    "check": "চেক"
+  },
+  "errors": {
+    "required": "এই ক্ষেত্রটি আবশ্যক",
+    "notFound": "খুঁজে পাওয়া যায়নি",
+    "noPermission": "আপনার অনুমতি নেই"
+  }
+}

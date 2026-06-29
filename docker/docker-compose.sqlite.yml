@@ -1,0 +1,20 @@
+services:
+  ospos:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      DB_DRIVER: sqlite
+      DATABASE_URL: file:/data/ospos.sqlite
+      ALLOWED_HOSTNAMES: localhost,127.0.0.1
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-me-in-production}
+      AUTH_SECRET: ${AUTH_SECRET:-change-me-in-production}
+    volumes:
+      - ospos-sqlite:/data
+    restart: unless-stopped
+
+volumes:
+  ospos-sqlite:

@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #4eee0f;
+  --foreground: #349427;
 }
 
 @theme inline {
@@ -14,13 +14,38 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #111827;
+    --foreground: #f8fafc;
   }
+}
+
+html {
+  color-scheme: light;
 }
 
 body {
   background: var(--background);
-  color: var(--foreground);
+  color: #ffffff;
   font-family: Arial, Helvetica, sans-serif;
+}
+
+input,
+textarea,
+select {
+  background-color: #161616;
+  color: #ffffff;
+  border-color: #cbd5e1;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #808080;
+}
+
+label {
+  color: #c8c8c8;
+}
+
+button {
+  color: inherit;
 }
