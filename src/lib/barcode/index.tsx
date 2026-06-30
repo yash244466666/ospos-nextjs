@@ -129,25 +129,30 @@ export function displayBarcode(item: { itemId: number; itemNumber: string | null
 
 export async function generateBarcodesPdf(items: Array<{ itemId: number; itemNumber: string | null; name: string; unitPrice?: number; costPrice?: number; category?: string | null }>): Promise<Buffer> {
   const config = getBarcodeConfig();
+  const bcid = SUPPORTED_BARCODES[config.type] ?? "code128";
   const { renderToBuffer, Document, Page, View, Text, Image } = await import("@react-pdf/renderer");
-  const cells: Array<{ value: string; name: string; price: number; svg: string }> = [];
+  const cellWidthPct = `${100 / config.numInRow}%`;
+  const cellMargin = config.pageCellspacing;
+  const cells: Array<{ svg: string; row1: string; row2: string; row3: string }> = [];
   for (const item of items) {
-    const value = getBarcodeValue(item, config.content);
+    const enriched = { ...item, unitPrice: item.unitPrice ?? 0, costPrice: item.costPrice ?? 0, category: item.category ?? "" };
+    const displayed = displayBarcode(enriched, config);
     const png = await bwipjs.toBuffer({
-      bcid: config.type, text: value, scale: 2, height: config.height, includetext: false,
+      bcid, text: displayed.svgValue, scale: 2, height: config.height, includetext: false,
     });
-    cells.push({ value, name: item.name, price: item.unitPrice ?? 0, svg: `data:image/png;base64,${png.toString("base64")}` });
+    cells.push({ svg: `data:image/png;base64,${png.toString("base64")}`, row1: displayed.row1, row2: displayed.row2, row3: displayed.row3 });
   }
+  const fontFamily = config.font && config.font !== "0" && config.font !== "Arial" ? config.font : "Helvetica";
   const doc = (
     <Document>
-      <Page size="A4" style={{ padding: 16, fontSize: 10 }}>
-        <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+      <Page size="A4" style={{ padding: 16, fontSize: config.fontSize, fontFamily }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", width: `${config.pageWidth}%` }}>
           {cells.map((c, i) => (
-            <View key={i} style={{ width: "33%", padding: 4, border: "1pt solid #000", alignItems: "center" }}>
-              <Image src={c.svg} style={{ width: 130, height: 50 }} />
-              <Text>{c.value}</Text>
-              <Text>{c.name}</Text>
-              <Text>{c.price}</Text>
+            <View key={i} style={{ width: cellWidthPct, margin: cellMargin, padding: 4, border: "1pt solid #000", alignItems: "center" }}>
+              <Image src={c.svg} style={{ width: "90%", height: config.height }} />
+              {c.row1 ? <Text style={{ fontSize: config.fontSize }}>{c.row1}</Text> : null}
+              {c.row2 ? <Text style={{ fontSize: config.fontSize }}>{c.row2}</Text> : null}
+              {c.row3 ? <Text style={{ fontSize: config.fontSize }}>{c.row3}</Text> : null}
             </View>
           ))}
         </View>

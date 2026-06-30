@@ -1,6 +1,6 @@
 import { and, desc, eq, like, or, sql, ne, isNull } from "drizzle-orm";
 import { getDbSync } from "@/lib/db";
-import { items, itemsTaxes, itemQuantities, inventory, stockLocations, attributeDefinitions, attributeLinks, attributeValues, suppliers, people } from "@/db/schema";
+import { items, itemsTaxes, itemQuantities, inventory, stockLocations, attributeDefinitions, attributeLinks, attributeValues, suppliers, people, taxCategories } from "@/db/schema";
 import { ITEM_TYPE, STOCK_TYPE } from "@/lib/constants";
 
 export interface ItemRow {
@@ -25,6 +25,11 @@ export interface ItemRow {
   lowSellItemId: number | null;
   hsnCode: string | null;
   deleted: boolean;
+  quantity?: number;
+  companyName?: string | null;
+  taxPercents?: string;
+  taxCategory?: string | null;
+  attributeValues?: Record<number, string | null>;
 }
 
 export interface ItemSearchFilters {
@@ -96,8 +101,12 @@ export function searchItems(filters: ItemSearchFilters): { rows: ItemRow[]; tota
       lowSellItemId: items.lowSellItemId,
       hsnCode: items.hsnCode,
       deleted: items.deleted,
+      companyName: suppliers.companyName,
+      taxCategory: taxCategories.taxCategory,
     })
     .from(items)
+    .leftJoin(suppliers, eq(suppliers.personId, items.supplierId))
+    .leftJoin(taxCategories, eq(taxCategories.taxCategoryId, items.taxCategoryId))
     .where(where)
     .orderBy(desc(items.itemId))
     .limit(filters.limit ?? 25)
@@ -120,6 +129,62 @@ export function searchItems(filters: ItemSearchFilters): { rows: ItemRow[]; tota
     quantityMap = Object.fromEntries(qrows.map((q) => [q.itemId, q.quantity]));
   }
 
+  const taxMap: Record<number, string> = {};
+  const attributeMap: Record<number, Record<number, string | null>> = {};
+  if (rows.length > 0) {
+    const ids = rows.map((r) => r.itemId);
+
+    const taxRows = db
+      .select({ itemId: itemsTaxes.itemId, name: itemsTaxes.name, percent: itemsTaxes.percent })
+      .from(itemsTaxes)
+      .where(sql`${itemsTaxes.itemId} IN (${ids.join(",")})`)
+      .orderBy(itemsTaxes.name)
+      .all();
+    const taxGroups = new Map<number, string[]>();
+    for (const t of taxRows) {
+      const list = taxGroups.get(t.itemId) ?? [];
+      list.push(`${t.percent.toFixed ? t.percent.toFixed(2) : t.percent}%`);
+      taxGroups.set(t.itemId, list);
+    }
+    for (const id of ids) {
+      const list = taxGroups.get(id);
+      taxMap[id] = list ? list.join(", ") : "-";
+    }
+
+    const definitions = db
+      .select({ definitionId: attributeDefinitions.definitionId, definitionName: attributeDefinitions.definitionName })
+      .from(attributeDefinitions)
+      .where(and(eq(attributeDefinitions.deleted, false), sql`(${attributeDefinitions.definitionFlags} & 1) = 1`))
+      .all();
+    if (definitions.length > 0) {
+      const defIds = definitions.map((d) => d.definitionId);
+      const attrRows = db
+        .select({
+          itemId: attributeLinks.itemId,
+          definitionId: attributeLinks.definitionId,
+          attributeValue: attributeValues.attributeValue,
+        })
+        .from(attributeLinks)
+        .innerJoin(attributeValues, eq(attributeValues.attributeId, attributeLinks.attributeId))
+        .where(
+          and(
+            sql`${attributeLinks.itemId} IN (${ids.join(",")})`,
+            sql`${attributeLinks.definitionId} IN (${defIds.join(",")})`,
+            sql`${attributeLinks.saleId} IS NULL`,
+            sql`${attributeLinks.receivingId} IS NULL`
+          )
+        )
+        .all();
+      for (const id of ids) attributeMap[id] = {};
+      for (const a of attrRows) {
+        if (!a.itemId) continue;
+        const map = attributeMap[a.itemId] ?? {};
+        map[a.definitionId] = a.attributeValue;
+        attributeMap[a.itemId] = map;
+      }
+    }
+  }
+
   const totalRow = db
     .select({ c: sql<number>`count(*)` })
     .from(items)
@@ -130,6 +195,8 @@ export function searchItems(filters: ItemSearchFilters): { rows: ItemRow[]; tota
     rows: rows.map((r) => ({
       ...r,
       quantity: quantityMap[r.itemId] ?? 0,
+      taxPercents: taxMap[r.itemId] ?? "-",
+      attributeValues: attributeMap[r.itemId] ?? {},
     })) as ItemRow[],
     total: totalRow?.c ?? 0,
   };

@@ -1,6 +1,8 @@
 import { requirePermission } from "@/lib/auth/with-permission";
 import { searchItems, getStockLocations } from "@/lib/items/repository";
 import { ItemsTable } from "@/components/items/items-table";
+import { getDefinitionsByFlags } from "@/lib/attributes/repository";
+import { getConfigBool } from "@/lib/config";
 import Link from "next/link";
 import { Package, Plus, Upload, Barcode } from "lucide-react";
 
@@ -26,6 +28,8 @@ export default async function ItemsPage({
   };
   const { rows, total } = searchItems(filters);
   const locations = getStockLocations();
+  const useDestinationBasedTax = getConfigBool("use_destination_based_tax", false);
+  const definitions = getDefinitionsByFlags(1);
 
   return (
     <div className="space-y-5">
@@ -79,7 +83,7 @@ export default async function ItemsPage({
       </form>
 
       <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-sm overflow-hidden" data-testid="data-table">
-        <ItemsTable rows={rows} locations={locations} currentLocation={stockLocationId} />
+        <ItemsTable rows={rows} locations={locations} currentLocation={stockLocationId} useDestinationBasedTax={useDestinationBasedTax} definitions={definitions} />
       </div>
     </div>
   );

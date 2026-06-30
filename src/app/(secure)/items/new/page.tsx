@@ -28,7 +28,8 @@ export default async function NewItemPage() {
         locations={locations}
         suppliers={suppliers}
         taxCategories={taxCategoryRows.map((t) => ({ taxCategoryId: t.taxCategoryId, taxCategory: t.taxCategory }))}
-        attributes={attributeRows.map((a) => ({ definitionId: a.definitionId, definitionName: a.definitionName, definitionType: a.definitionType as unknown as number }))}
+        attributes={attributeRows.map((a) => ({ definitionId: a.definitionId, definitionName: a.definitionName, definitionType: a.definitionType }))}
+        attributeValues={{}}
         includeHsn={includeHsn}
         useDestinationBasedTax={useDestinationBasedTax}
       />

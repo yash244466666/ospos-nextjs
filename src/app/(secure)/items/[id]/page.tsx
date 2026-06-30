@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { getDbSync } from "@/lib/db";
 import { taxCategories, attributeDefinitions } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getAttributesByItem } from "@/lib/attributes/repository";
 
 export default async function EditItemPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("items");
@@ -15,6 +16,8 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
   if (!item) notFound();
   const taxes = getItemTaxes(itemId);
   const quantities = getQuantitiesByLocation(itemId);
+  const attributeValueRows = getAttributesByItem(itemId);
+  const attributeValues = Object.fromEntries(attributeValueRows.map((a) => [a.definitionId, a.value]));
   const locations = getStockLocations();
   const suppliers = getSuppliers();
   const includeHsn = getConfigBool("include_hsn", false);
@@ -35,7 +38,8 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
         locations={locations}
         suppliers={suppliers}
         taxCategories={taxCategoryRows.map((t) => ({ taxCategoryId: t.taxCategoryId, taxCategory: t.taxCategory }))}
-        attributes={attributeRows.map((a) => ({ definitionId: a.definitionId, definitionName: a.definitionName, definitionType: a.definitionType as unknown as number }))}
+        attributes={attributeRows.map((a) => ({ definitionId: a.definitionId, definitionName: a.definitionName, definitionType: a.definitionType }))}
+        attributeValues={attributeValues}
         includeHsn={includeHsn}
         useDestinationBasedTax={useDestinationBasedTax}
       />
