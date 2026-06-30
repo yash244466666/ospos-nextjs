@@ -447,17 +447,23 @@ export function changeCostPrice(itemId: number, itemsReceived: number, newPrice:
   const db = getDbSync();
   const existing = db.select().from(items).where(eq(items.itemId, itemId)).get();
   if (!existing) return;
-  const totalQty = itemsReceived;
+  if (itemsReceived <= 0) {
+    db.update(items).set({ costPrice: newPrice }).where(eq(items.itemId, itemId)).run();
+    return;
+  }
+  const sumRow = db.select({ total: sql<number>`COALESCE(SUM(${itemQuantities.quantity}), 0)` })
+    .from(itemQuantities)
+    .innerJoin(stockLocations, eq(stockLocations.locationId, itemQuantities.locationId))
+    .where(and(eq(itemQuantities.itemId, itemId), eq(stockLocations.deleted, false)))
+    .get();
+  const oldTotalQty = sumRow?.total ?? 0;
+  const totalQty = oldTotalQty + itemsReceived;
   if (totalQty <= 0) {
     db.update(items).set({ costPrice: newPrice }).where(eq(items.itemId, itemId)).run();
     return;
   }
-  const oldTotal = existing.costPrice * totalQty;
-  const newTotal = newPrice * itemsReceived;
-  const totalCost = oldTotal + newTotal;
-  const totalUnits = totalQty * 2;
-  const avg = totalCost / totalUnits;
-  db.update(items).set({ costPrice: avg }).where(eq(items.itemId, itemId)).run();
+  const avg = (itemsReceived * newPrice + oldTotalQty * oldPrice) / totalQty;
+  db.update(items).set({ costPrice: Math.round(avg * 10000) / 10000 }).where(eq(items.itemId, itemId)).run();
   void employeeId;
 }
 

@@ -47,7 +47,7 @@ export function hasModuleGrant(moduleId: string, personId: number): boolean {
   const matching = db
     .select({ permissionId: grants.permissionId })
     .from(grants)
-    .where(and(eq(grants.personId, personId), like(grants.permissionId, `${moduleId} %`)))
+    .where(and(eq(grants.personId, personId), like(grants.permissionId, `${moduleId}%`)))
     .all();
   if (matching.length === 0) {
     const direct = db

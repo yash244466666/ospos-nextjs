@@ -551,23 +551,36 @@ export async function addPayment(
     }
   }
 
+  // Cash refunds are recorded in cashRefund, not as a negative payment_amount.
+  let cashRefund = 0;
+  if (actualType === "Cash" && actualAmount < 0) {
+    cashRefund = -actualAmount;
+    actualAmount = 0;
+  }
+
   const existingIdx = cart.payments.findIndex((p) => p.paymentType === actualType);
+  let targetPayment: SalePayment;
   if (existingIdx >= 0) {
-    cart.payments[existingIdx].paymentAmount += actualAmount;
+    const existing = cart.payments[existingIdx];
+    existing.paymentAmount = roundNumber(existing.paymentAmount + actualAmount, ROUNDING_MODE_VAL, totalsDecimals());
+    existing.cashRefund = roundNumber(existing.cashRefund + cashRefund, ROUNDING_MODE_VAL, totalsDecimals());
+    targetPayment = existing;
   } else {
-    cart.payments.push({
+    targetPayment = {
       paymentId: `${actualType}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       paymentType: actualType,
       paymentAmount: actualAmount,
-      cashRefund: 0,
-      cashAdjustment: cashAdjustment,
+      cashRefund,
+      cashAdjustment: 0,
       employeeId: employeeId ?? 0,
       paymentTime: Math.floor(Date.now() / 1000),
-    });
+    };
+    cart.payments.push(targetPayment);
   }
 
   if (cashAdjustment !== 0) {
-    cart.payments.push({
+    targetPayment.cashAdjustment = cashAdjustment;
+    const adjustment: SalePayment = {
       paymentId: `${CASH_ADJUSTMENT_PAYMENT_TYPE}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       paymentType: CASH_ADJUSTMENT_PAYMENT_TYPE,
       paymentAmount: cashAdjustment,
@@ -575,13 +588,16 @@ export async function addPayment(
       cashAdjustment: 0,
       employeeId: employeeId ?? 0,
       paymentTime: Math.floor(Date.now() / 1000),
-    });
+      siblingId: targetPayment.paymentId,
+    };
+    cart.payments.push(adjustment);
+    targetPayment.siblingId = adjustment.paymentId;
   }
 
   if (actualType === "Cash") {
     cart.cashMode = true;
   } else {
-    cart.cashMode = cart.payments.length > 0 ? cart.payments.every((p) => p.paymentType === "Cash") : false;
+    cart.cashMode = cart.payments.length > 0 ? cart.payments.every((p) => p.paymentType === "Cash" || p.paymentType === CASH_ADJUSTMENT_PAYMENT_TYPE) : false;
   }
   await saveCart(cart);
   return cart;
@@ -597,9 +613,13 @@ export async function editPayment(cart: SaleCart, paymentId: string, amount: num
 
 export async function deletePayment(cart: SaleCart, paymentId: string): Promise<SaleCart> {
   const payment = cart.payments.find((p) => p.paymentId === paymentId);
+  const idsToRemove = new Set<string>([paymentId]);
   if (payment) {
-    if (payment.cashAdjustment !== 0) {
-      cart.payments = cart.payments.filter((p) => p.paymentType !== CASH_ADJUSTMENT_PAYMENT_TYPE);
+    if (payment.siblingId) {
+      idsToRemove.add(payment.siblingId);
+    } else {
+      const sibling = cart.payments.find((p) => p.siblingId === paymentId);
+      if (sibling) idsToRemove.add(sibling.paymentId);
     }
     if (payment.paymentType.startsWith(GIFT_CARD_PREFIX)) {
       const giftcardNumber = payment.paymentType.slice(GIFT_CARD_PREFIX.length);
@@ -619,8 +639,8 @@ export async function deletePayment(cart: SaleCart, paymentId: string): Promise<
       cart.rewardsRemainder = 0;
     }
   }
-  cart.payments = cart.payments.filter((p) => p.paymentId !== paymentId);
-  cart.cashMode = cart.payments.length > 0 ? cart.payments.every((p) => p.paymentType === "Cash") : false;
+  cart.payments = cart.payments.filter((p) => !idsToRemove.has(p.paymentId));
+  cart.cashMode = cart.payments.length > 0 ? cart.payments.every((p) => p.paymentType === "Cash" || p.paymentType === CASH_ADJUSTMENT_PAYMENT_TYPE) : false;
   await saveCart(cart);
   return cart;
 }
@@ -684,41 +704,56 @@ export async function returnEntireSale(cart: SaleCart, receiptInput: string): Pr
     const sale = db.select().from(sales).where(eq(sales.saleId, saleId)).get();
     if (sale) {
       const lines = db.select().from(salesItems).where(eq(salesItems.saleId, saleId)).all();
-      cart.cart = lines.map((r) => ({
-        line: r.line,
-        itemId: r.itemId,
-        itemLocation: r.itemLocation ?? cart.locationId,
-        itemName: "",
-        itemNumber: null,
-        stockName: "",
-        attributeValues: "",
-        attributeDtvalues: "",
-        description: r.description ?? "",
-        serialnumber: r.serialnumber ?? "",
-        allowAltDescription: false,
-        isSerialized: false,
-        quantity: Math.abs(r.quantityPurchased),
-        discount: r.discount,
-        discountType: r.discountType,
-        inStock: 0,
-        price: r.itemUnitPrice,
-        costPrice: r.itemCostPrice,
-        total: Math.abs(r.quantityPurchased) * r.itemUnitPrice * (r.discountType === PERCENT ? 1 - r.discount / 100 : 1) - (r.discountType === FIXED ? r.discount : 0),
-        discountedTotal: 0,
-        printOption: r.printOption,
-        stockType: 0,
-        itemType: 0,
-        hsnCode: "",
-        taxCategoryId: null,
-        taxedFlag: "",
-        promotionDiscount: 0,
-        unitPriceBeforePromo: r.itemUnitPrice,
-        promoQuantitySold: 0,
-        printAfterPromo: false,
-      }));
+      const returnedCart: CartLine[] = [];
+      for (const r of lines) {
+        const item = db.select().from(items).where(eq(items.itemId, r.itemId)).get();
+        const absQty = Math.abs(r.quantityPurchased);
+        const qty = -absQty;
+        const lineTotal = getItemTotal(absQty, r.itemUnitPrice, r.discount, r.discountType);
+        returnedCart.push({
+          line: r.line,
+          itemId: r.itemId,
+          itemLocation: r.itemLocation ?? cart.locationId,
+          itemName: item?.name ?? "",
+          itemNumber: item?.itemNumber ?? null,
+          stockName: "",
+          attributeValues: "",
+          attributeDtvalues: "",
+          description: r.description ?? "",
+          serialnumber: r.serialnumber ?? "",
+          allowAltDescription: item?.allowAltDescription ?? false,
+          isSerialized: item?.isSerialized ?? false,
+          quantity: qty,
+          discount: r.discount,
+          discountType: r.discountType,
+          inStock: 0,
+          price: r.itemUnitPrice,
+          costPrice: r.itemCostPrice,
+          total: -lineTotal,
+          discountedTotal: -lineTotal,
+          printOption: r.printOption,
+          stockType: item?.stockType ?? 0,
+          itemType: item?.itemType ?? 0,
+          hsnCode: item?.hsnCode ?? "",
+          taxCategoryId: item?.taxCategoryId ?? null,
+          taxedFlag: "",
+          promotionDiscount: 0,
+          unitPriceBeforePromo: r.itemUnitPrice,
+          promoQuantitySold: 0,
+          printAfterPromo: false,
+        });
+      }
+      cart.cart = returnedCart;
+      cart.payments = [];
       cart.customerId = sale.customerId;
       cart.mode = "return";
       cart.saleType = SALE_TYPE.RETURN;
+      cart.saleId = -1;
+      cart.suspendedId = null;
+      cart.invoiceNumber = "";
+      cart.quoteNumber = "";
+      cart.workOrderNumber = "";
+      cart.dinnerTableId = null;
       await saveCart(cart);
     }
   }

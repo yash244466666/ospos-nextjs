@@ -1,5 +1,6 @@
 import { sqliteTable, integer, text, real } from "drizzle-orm/sqlite-core";
 import { people } from "./auth";
+import { taxCodes } from "./taxes";
 
 export const customers = sqliteTable("customers", {
   personId: integer("person_id", { mode: "number" }).primaryKey().references(() => people.personId, { onDelete: "cascade" }),
@@ -9,6 +10,7 @@ export const customers = sqliteTable("customers", {
   discount: real("discount").notNull().default(0),
   discountType: integer("discount_type", { mode: "number" }).notNull().default(0),
   points: integer("points", { mode: "number" }).notNull().default(0),
+  salesTaxCodeId: integer("sales_tax_code_id", { mode: "number" }).references(() => taxCodes.taxCodeId),
   deleted: integer("deleted", { mode: "boolean" }).notNull().default(false),
 });
 

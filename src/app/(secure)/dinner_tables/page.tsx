@@ -13,9 +13,11 @@ export default async function DinnerTablesPage() {
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl">Dinner Tables</h1>
-        <Link href="/dinner_tables/new/0" className="bg-blue-600 text-white px-3 py-1 rounded text-sm">New</Link>
+        <Link href="/dinner_tables/new/0" className="bg-blue-600 text-white px-3 py-1 rounded text-sm" data-testid="new-button">New</Link>
       </div>
-      <DinnerTablesTable rows={rows} />
+      <div data-testid="data-table">
+        <DinnerTablesTable rows={rows} />
+      </div>
     </div>
   );
 }

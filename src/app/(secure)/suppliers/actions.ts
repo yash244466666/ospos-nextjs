@@ -36,13 +36,14 @@ export async function saveSupplierAction(formData: FormData) {
     accountNumber,
   });
   revalidatePath("/suppliers");
-  redirect(`/suppliers/new/${id}`);
+  redirect("/suppliers");
 }
 
 export async function deleteSupplierAction(personId: number) {
   await requirePermission("suppliers");
   deleteSupplier(personId);
   revalidatePath("/suppliers");
+  redirect("/suppliers");
 }
 
 export { searchSuppliers, getSupplier };

@@ -21,7 +21,7 @@ export async function saveDinnerTableAction(formData: FormData) {
     outId = db.insert(dinnerTables).values({ name, deleted: false }).returning({ id: dinnerTables.dinnerTableId }).get().id;
   }
   revalidatePath("/dinner_tables");
-  redirect(`/dinner_tables/new/${outId}`);
+  redirect("/dinner_tables");
 }
 
 export async function deleteDinnerTableAction(dinnerTableId: number) {
@@ -29,6 +29,7 @@ export async function deleteDinnerTableAction(dinnerTableId: number) {
   const db = getDbSync();
   db.update(dinnerTables).set({ deleted: true }).where(eq(dinnerTables.dinnerTableId, dinnerTableId)).run();
   revalidatePath("/dinner_tables");
+  redirect("/dinner_tables");
 }
 import { getAll as listAll, getInfo as info, search, isOccupied } from "@/lib/dinner_tables/repository";
 export async function searchDinnerTablesAction(term: string) { await requirePermission("dinner_tables"); return search(term); }

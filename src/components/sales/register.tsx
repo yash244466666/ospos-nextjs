@@ -131,6 +131,7 @@ export default function Register(props: Props) {
               value={itemInput}
               onChange={(e) => setItemInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && itemInput.trim()) onAdd(itemInput.trim(), qty); }}
+              data-testid="item-input"
             />
             {suggestions.length > 0 && (
               <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg max-h-72 overflow-auto">
@@ -162,6 +163,7 @@ export default function Register(props: Props) {
               className="bg-[var(--color-accent)] hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors"
               disabled={pending || !itemInput.trim()}
               onClick={() => onAdd(itemInput.trim(), qty)}
+              data-testid="add-item-button"
             >
               <Plus className="w-4 h-4" /> Add
             </button>
@@ -169,7 +171,7 @@ export default function Register(props: Props) {
         </div>
 
         <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" data-testid="cart-table">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="p-3 text-left font-medium text-slate-700">Item</th>
@@ -189,9 +191,9 @@ export default function Register(props: Props) {
                 </tr>
               )}
               {cart.cart.map((l) => (
-                <tr key={l.line} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+                <tr key={l.line} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors" data-testid={`cart-row-${l.line}`}>
                   <td className="p-3">
-                    <div className="font-medium text-slate-900">{l.itemName}</div>
+                    <div className="font-medium text-slate-900" data-testid={`cart-item-name-${l.line}`}>{l.itemName}</div>
                     {l.description && <div className="text-xs text-slate-500">{l.description}</div>}
                   </td>
                   <td className="p-3 text-right">
@@ -219,12 +221,13 @@ export default function Register(props: Props) {
                       onChange={(e) => start(() => editItemAction(l.line, { discount: parseFloat(e.target.value) || 0 }))}
                     />
                   </td>
-                  <td className="p-3 text-right font-medium text-slate-900">{props.currencySymbol}{l.total.toFixed(2)}</td>
+                  <td className="p-3 text-right font-medium text-slate-900" data-testid={`cart-row-total-${l.line}`}>{props.currencySymbol}{l.total.toFixed(2)}</td>
                   <td className="p-3">
                     <button
                       className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                       onClick={() => start(() => deleteItemAction(l.line))}
                       aria-label="remove line"
+                      data-testid={`cart-row-delete-${l.line}`}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -239,6 +242,7 @@ export default function Register(props: Props) {
           {MODE_CONFIG.map((m) => (
             <button
               key={m.key}
+              data-testid={`mode-${m.key}`}
               onClick={() => { setMode(m.key); start(() => changeModeAction(m.key)); }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
                 mode === m.key
@@ -254,13 +258,13 @@ export default function Register(props: Props) {
 
         <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-sm p-5 max-w-sm ml-auto">
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between text-slate-600"><span>Subtotal</span><span className="font-medium text-slate-900">{props.currencySymbol}{props.totals.subtotal.toFixed(2)}</span></div>
-            <div className="flex justify-between text-slate-600"><span>Discount</span><span className="font-medium text-slate-900">{props.currencySymbol}{props.totals.itemDiscount.toFixed(2)}</span></div>
+            <div className="flex justify-between text-slate-600" data-testid="totals-subtotal"><span>Subtotal</span><span className="font-medium text-slate-900">{props.currencySymbol}{props.totals.subtotal.toFixed(2)}</span></div>
+            <div className="flex justify-between text-slate-600" data-testid="totals-discount"><span>Discount</span><span className="font-medium text-slate-900">{props.currencySymbol}{props.totals.itemDiscount.toFixed(2)}</span></div>
             {props.taxes.map((t) => (
-              <div key={t.taxGroup} className="flex justify-between text-slate-600"><span>Tax {t.taxGroup}</span><span className="font-medium text-slate-900">{props.currencySymbol}{t.saleTaxAmount.toFixed(2)}</span></div>
+              <div key={t.taxGroup} className="flex justify-between text-slate-600" data-testid={`tax-${t.taxGroup}`}><span>Tax {t.taxGroup}</span><span className="font-medium text-slate-900">{props.currencySymbol}{t.saleTaxAmount.toFixed(2)}</span></div>
             ))}
-            <div className="flex justify-between text-lg font-semibold border-t border-slate-200 pt-2 text-slate-900">
-              <span>Total</span><span>{props.currencySymbol}{total.toFixed(2)}</span>
+            <div className="flex justify-between text-lg font-semibold border-t border-slate-200 pt-2 text-slate-900" data-testid="totals-total">
+              <span>Total</span><span data-testid="totals-total-value">{props.currencySymbol}{total.toFixed(2)}</span>
             </div>
           </div>
         </div>
@@ -330,6 +334,7 @@ export default function Register(props: Props) {
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
                 value={cart.invoiceNumber ?? cart.quoteNumber ?? cart.workOrderNumber ?? ""}
                 onChange={(e) => start(() => setInvoiceNumberAction(e.target.value))}
+                data-testid="document-number-input"
               />
             </div>
           )}
@@ -367,15 +372,15 @@ export default function Register(props: Props) {
               ))}
             </div>
           )}
-          <div className="flex justify-between text-sm text-slate-600 border-t border-slate-100 pt-2">
+          <div className="flex justify-between text-sm text-slate-600 border-t border-slate-100 pt-2" data-testid="payments-paid">
             <span>Paid</span><span className="font-medium text-slate-900">{props.currencySymbol}{paid.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-sm font-semibold text-slate-900">
-            <span>Due</span><span>{props.currencySymbol}{due.toFixed(2)}</span>
+          <div className="flex justify-between text-sm font-semibold text-slate-900" data-testid="payments-due">
+            <span>Due</span><span data-testid="payments-due-value">{props.currencySymbol}{due.toFixed(2)}</span>
           </div>
           {change > 0 && (
-            <div className="flex justify-between text-sm text-emerald-600 font-medium">
-              <span>Change</span><span>{props.currencySymbol}{change.toFixed(2)}</span>
+            <div className="flex justify-between text-sm text-emerald-600 font-medium" data-testid="payments-change">
+              <span>Change</span><span data-testid="payments-change-value">{props.currencySymbol}{change.toFixed(2)}</span>
             </div>
           )}
 
@@ -384,6 +389,7 @@ export default function Register(props: Props) {
               className="border border-slate-300 rounded-lg px-2 py-2 text-sm bg-white"
               value={paymentType}
               onChange={(e) => setPaymentType(e.target.value)}
+              data-testid="payment-type"
             >
               {props.paymentOptions.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
@@ -393,10 +399,12 @@ export default function Register(props: Props) {
               placeholder={due.toFixed(2)}
               value={tendered}
               onChange={(e) => setTendered(e.target.value)}
+              data-testid="payment-amount"
             />
             <button
               className="bg-[var(--color-accent)] hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               disabled={pending}
+              data-testid="add-payment-button"
               onClick={() => {
                 const amt = tendered ? parseFloat(tendered) : due;
                 if (paymentType === "giftcard") {
@@ -422,6 +430,7 @@ export default function Register(props: Props) {
             className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-lg font-medium hover:bg-slate-50 disabled:opacity-50 transition-colors"
             disabled={pending || cart.cart.length === 0}
             onClick={() => start(() => suspendAction())}
+            data-testid="suspend-sale-button"
           >
             <Pause className="w-4 h-4" /> Suspend
           </button>
@@ -429,6 +438,7 @@ export default function Register(props: Props) {
             className="flex items-center justify-center gap-2 px-4 py-3 bg-[var(--color-accent)] hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg font-medium transition-colors"
             disabled={pending || cart.cart.length === 0}
             onClick={() => start(() => completeSaleAction())}
+            data-testid="complete-sale-button"
           >
             <Calculator className="w-4 h-4" /> Complete
           </button>

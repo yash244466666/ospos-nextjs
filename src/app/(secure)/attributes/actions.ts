@@ -52,13 +52,14 @@ export async function saveAttributeAction(formData: FormData) {
     definitionFk,
   }, values);
   revalidatePath("/attributes");
-  redirect(`/attributes/new/${id}`);
+  redirect("/attributes");
 }
 
 export async function deleteAttributeAction(definitionId: number) {
   await requirePermission("attributes");
   deleteDefinition(definitionId);
   revalidatePath("/attributes");
+  redirect("/attributes");
 }
 
 export async function searchAttributesAction(term: string) {

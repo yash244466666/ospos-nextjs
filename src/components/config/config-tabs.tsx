@@ -27,6 +27,7 @@ export default function ConfigTabs({ tabs, values, encryptedValues }: Props) {
       <div className="flex gap-1 mb-3 flex-wrap">
         {tabs.map((t) => (
           <button key={t.key} type="button"
+            data-testid={`config-tab-${t.key}`}
             onClick={() => setActive(t.key)}
             className={`px-3 py-1 text-sm rounded ${active === t.key ? "bg-blue-600 text-white" : "bg-gray-200"}`}
           >{t.label}</button>
@@ -55,7 +56,7 @@ export default function ConfigTabs({ tabs, values, encryptedValues }: Props) {
               </div>
             );
           })}
-          <button type="submit" disabled={pending} className="bg-blue-600 text-white px-4 py-1 rounded disabled:opacity-50">
+          <button type="submit" disabled={pending} className="bg-blue-600 text-white px-4 py-1 rounded disabled:opacity-50" data-testid="save-config-button">
             {pending ? "Saving…" : `Save ${tab.label}`}
           </button>
         </form>

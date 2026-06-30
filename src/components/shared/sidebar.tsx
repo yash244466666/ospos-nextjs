@@ -113,6 +113,7 @@ function SidebarLink({ href, label, moduleId, active }: { href: string; label: s
   return (
     <Link
       href={href}
+      data-testid={`nav-${moduleId}`}
       className={`group flex items-center gap-3 px-5 py-2.5 text-sm transition-colors duration-200 rounded-r-full mr-3 ${
         active
           ? "bg-white/10 text-white font-medium border-l-4 border-[var(--color-accent)]"

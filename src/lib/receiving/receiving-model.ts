@@ -1,8 +1,9 @@
 import { and, eq, sql } from "drizzle-orm";
 import { getDbSync } from "@/lib/db";
-import { receivings, receivingsItems, inventory, itemQuantities, items, stockLocations } from "@/db/schema";
+import { receivings, receivingsItems, inventory, itemQuantities, items } from "@/db/schema";
 import { render } from "@/lib/token";
 import { getConfig } from "@/lib/config";
+import { changeCostPrice } from "@/lib/items/repository";
 import type { ReceivingCart } from "./receiving-store";
 
 export interface CompleteReceivingInput {
@@ -51,6 +52,13 @@ export async function completeReceiving(input: CompleteReceivingInput): Promise<
         receivingQuantity: 1,
       }).run();
 
+      if (cart.mode === "receive" && line.price > 0 && line.quantity > 0) {
+        const item = tx.select().from(items).where(eq(items.itemId, line.itemId)).get();
+        if (item) {
+          changeCostPrice(line.itemId, line.quantity, line.price, item.costPrice, employeeId);
+        }
+      }
+
       const existing = tx.select().from(itemQuantities)
         .where(and(eq(itemQuantities.itemId, line.itemId), eq(itemQuantities.locationId, line.itemLocation)))
         .get();
@@ -74,26 +82,6 @@ export async function completeReceiving(input: CompleteReceivingInput): Promise<
         transInventory: delta,
         transComment: cart.mode === "return" ? "Receiving return" : "Receiving",
       }).run();
-
-      if (cart.mode === "receive" && line.price > 0 && line.quantity > 0) {
-        const item = tx.select().from(items).where(eq(items.itemId, line.itemId)).get();
-        if (item) {
-          const oldPrice = item.costPrice;
-          const sumRow = tx.select({ total: sql<number>`COALESCE(SUM(${itemQuantities.quantity}), 0)` })
-            .from(itemQuantities)
-            .innerJoin(stockLocations, eq(stockLocations.locationId, itemQuantities.locationId))
-            .where(and(eq(itemQuantities.itemId, line.itemId), eq(stockLocations.deleted, false)))
-            .get();
-          const oldTotal = sumRow?.total ?? 0;
-          const newTotal = oldTotal + line.quantity;
-          if (newTotal > 0) {
-            const avg = (line.quantity * line.price + oldTotal * oldPrice) / newTotal;
-            tx.update(items).set({ costPrice: Math.round(avg * 10000) / 10000 })
-              .where(eq(items.itemId, line.itemId))
-              .run();
-          }
-        }
-      }
     }
 
     return { receivingId, invoiceNumber };

@@ -126,7 +126,7 @@ export async function saveSale(input: CompleteSaleInput): Promise<{ saleId: numb
         saleId,
         itemId: line.itemId,
         line: line.line,
-        description: line.description,
+        description: line.description || line.itemName,
         serialnumber: line.serialnumber,
         quantityPurchased: qty,
         discount: line.discount,
@@ -526,7 +526,13 @@ export function cancelSale(saleId: number, employeeId: number, updateInventory =
           }).run();
         }
       }
+      if (sale.dinnerTableId) {
+        tx.update(dinnerTables).set({ status: 0 }).where(eq(dinnerTables.dinnerTableId, sale.dinnerTableId)).run();
+      }
     } else {
+      if (sale.dinnerTableId) {
+        tx.update(dinnerTables).set({ status: 0 }).where(eq(dinnerTables.dinnerTableId, sale.dinnerTableId)).run();
+      }
       tx.delete(sales).where(eq(sales.saleId, saleId)).run();
     }
   });

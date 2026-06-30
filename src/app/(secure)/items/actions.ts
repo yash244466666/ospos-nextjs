@@ -68,8 +68,8 @@ export async function saveItemAction(formData: FormData) {
     itemNumber: data.itemNumber ?? null,
     packName: data.packName ?? null,
     hsnCode: data.hsnCode ?? null,
-    supplierId: data.supplierId ?? null,
-    taxCategoryId: data.taxCategoryId ?? null,
+    supplierId: data.supplierId || null,
+    taxCategoryId: data.taxCategoryId || null,
     picFilename: data.picFilename ?? null,
     employeeId: personId,
   });

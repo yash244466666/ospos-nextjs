@@ -1,0 +1,1 @@
+ALTER TABLE `customers` ADD `sales_tax_code_id` integer REFERENCES tax_codes(tax_code_id);

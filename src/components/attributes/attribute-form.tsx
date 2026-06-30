@@ -112,7 +112,7 @@ export default function AttributeForm({
           ))}
         </div>
       )}
-      <button type="submit" disabled={pending} className="bg-blue-600 text-white px-4 py-1 rounded disabled:opacity-50">
+      <button type="submit" disabled={pending} className="bg-blue-600 text-white px-4 py-1 rounded disabled:opacity-50" data-testid="save-button">
         {pending ? "Saving…" : "Save"}
       </button>
     </form>

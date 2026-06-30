@@ -8,6 +8,7 @@ export default function MessagesForm() {
   const [result, setResult] = useState<string | null>(null);
   return (
     <form className="p-4 max-w-md space-y-3"
+      data-testid="messages-form"
       action={(fd) => {
         setResult(null);
         start(() => sendSmsAction(fd).then((r) => setResult(r.message)));
@@ -23,7 +24,7 @@ export default function MessagesForm() {
         <label className="block text-sm">Message</label>
         <textarea name="message" rows={4} className="border px-2 py-1 w-full" />
       </div>
-      <button type="submit" disabled={pending} className="bg-blue-600 text-white px-4 py-1 rounded disabled:opacity-50">
+      <button type="submit" disabled={pending} className="bg-blue-600 text-white px-4 py-1 rounded disabled:opacity-50" data-testid="send-button">
         {pending ? "Sending…" : "Send"}
       </button>
       <p className="text-xs text-gray-500">SMS provider is stubbed. Configure <code>msg_msg</code>/<code>msg_uid</code>/<code>msg_pwd</code>/<code>msg_src</code> in Config and wire a real provider.</p>

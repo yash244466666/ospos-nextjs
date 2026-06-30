@@ -13,7 +13,7 @@ import { getAll as listDinnerTables } from "@/lib/dinner_tables/repository";
 export default async function RegisterPage() {
   await requirePermission("sales");
   const cart = await getCart();
-  const { taxes, itemTaxes } = getTaxes(cart.cart);
+  const { taxes, itemTaxes } = getTaxes(cart.cart, cart.customerId, cart.mode);
   const taxTotal = taxes.reduce((s, t) => s + t.saleTaxAmount, 0);
   const totals = getCartTotals(cart.cart, taxTotal, getConfigBool("tax_included", false));
   const db = getDbSync();

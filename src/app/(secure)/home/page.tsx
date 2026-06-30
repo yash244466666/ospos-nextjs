@@ -39,6 +39,7 @@ export default async function HomePage() {
           icon={ShoppingCart}
           accent="bg-blue-50 text-blue-600"
           href="/sales/manage"
+          testId="metric-sales"
         />
         <MetricCard
           title="Items in stock"
@@ -46,6 +47,7 @@ export default async function HomePage() {
           icon={Package}
           accent="bg-emerald-50 text-emerald-600"
           href="/items"
+          testId="metric-stock"
         />
         <MetricCard
           title="Suspended sales"
@@ -53,6 +55,7 @@ export default async function HomePage() {
           icon={PauseCircle}
           accent="bg-amber-50 text-amber-600"
           href="/sales/suspended"
+          testId="metric-suspended"
         />
         <MetricCard
           title="Total items"
@@ -60,6 +63,7 @@ export default async function HomePage() {
           icon={TrendingUp}
           accent="bg-slate-100 text-slate-600"
           href="/items"
+          testId="metric-items"
         />
       </div>
 
@@ -94,9 +98,9 @@ export default async function HomePage() {
   );
 }
 
-function MetricCard({ title, value, icon: Icon, accent, href }: { title: string; value: number; icon: React.ComponentType<{ className?: string }>; accent: string; href: string }) {
+function MetricCard({ title, value, icon: Icon, accent, href, testId }: { title: string; value: number; icon: React.ComponentType<{ className?: string }>; accent: string; href: string; testId?: string }) {
   return (
-    <Link href={href} className="group"
+    <Link href={href} className="group" data-testid={testId}
     >
       <Card className="border-[var(--color-border)] shadow-sm hover:shadow-md transition-shadow">
         <CardContent className="p-5 flex items-center justify-between">
@@ -117,6 +121,7 @@ function QuickAction({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
+      data-testid={`quick-action-${label.toLowerCase().replace(/\s+/g, "-")}`}
       className="flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 transition-colors group"
     >
       {label}

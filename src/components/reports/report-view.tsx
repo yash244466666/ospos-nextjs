@@ -1,11 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import type { ReportDef } from "@/lib/reports/registry";
 import { BarChart, HBarChart, LineChart, PieChart } from "./charts";
 
+interface SerializableReportDef {
+  key: string;
+  title: string;
+  permission: string;
+  hasDateRange?: boolean;
+  columns: { name: string; label: string; align?: "left" | "right" }[];
+  chart?: "bar" | "hbar" | "line" | "pie";
+}
+
 interface Props {
-  def: ReportDef;
+  def: SerializableReportDef;
   rows: Record<string, unknown>[];
   initialStart: string;
   initialEnd: string;
@@ -24,7 +32,7 @@ function fmt(v: unknown): string {
   return String(v);
 }
 
-function ChartFor({ def, rows }: { def: ReportDef; rows: Record<string, unknown>[] }) {
+function ChartFor({ def, rows }: { def: SerializableReportDef; rows: Record<string, unknown>[] }) {
   if (!def.chart) return null;
   const labelKey = def.columns[0]?.name ?? "label";
   const valueKey = def.columns.find((c) => c.name !== labelKey)?.name ?? "value";
@@ -49,20 +57,22 @@ export default function ReportView({ def, rows, initialStart, initialEnd }: Prop
         <Link href="/reports" className="text-sm text-blue-600">← Back</Link>
       </div>
       {def.hasDateRange && (
-        <form className="flex gap-2 mb-3 items-end" method="get" action={`/reports/${def.key}`}>
+        <form className="flex gap-2 mb-3 items-end" method="get" action={`/reports/${def.key}`} data-testid="report-filter-form">
           <div>
             <label className="block text-xs">Start</label>
-            <input type="date" name="start" defaultValue={initialStart} className="border px-2 py-1" />
+            <input type="date" name="start" defaultValue={initialStart} data-testid="report-date-start" className="border px-2 py-1" />
           </div>
           <div>
             <label className="block text-xs">End</label>
-            <input type="date" name="end" defaultValue={initialEnd} className="border px-2 py-1" />
+            <input type="date" name="end" defaultValue={initialEnd} data-testid="report-date-end" className="border px-2 py-1" />
           </div>
           <button type="submit"
             className="bg-blue-600 text-white px-3 py-1 rounded text-sm"
+            data-testid="report-apply-button"
           >Apply</button>
           <Link href={`/reports/${def.key}/export?start=${encodeURIComponent(initialStart)}&end=${encodeURIComponent(initialEnd)}`}
-            className="bg-gray-200 px-3 py-1 rounded text-sm">Export CSV</Link>
+            className="bg-gray-200 px-3 py-1 rounded text-sm"
+            data-testid="report-export-link">Export CSV</Link>
         </form>
       )}
       {def.chart && rows.length > 0 && (
@@ -73,7 +83,7 @@ export default function ReportView({ def, rows, initialStart, initialEnd }: Prop
       {rows.length === 0 ? (
         <div className="text-gray-500">No data.</div>
       ) : (
-        <table className="w-full text-sm border">
+        <table className="w-full text-sm border" data-testid="report-table">
           <thead className="bg-gray-100">
             <tr>
               {def.columns.map((c) => (

@@ -47,7 +47,7 @@ export async function saveItemKitAction(formData: FormData) {
     return kitId;
   });
   revalidatePath("/item_kits");
-  redirect(`/item_kits/new/${kitId}`);
+  redirect("/item_kits");
 }
 
 export async function deleteItemKitAction(itemKitId: number) {
@@ -58,6 +58,7 @@ export async function deleteItemKitAction(itemKitId: number) {
     tx.delete(itemKits).where(eq(itemKits.itemKitId, itemKitId)).run();
   });
   revalidatePath("/item_kits");
+  redirect("/item_kits");
 }
 
 export async function listItemsForSelectAction() {

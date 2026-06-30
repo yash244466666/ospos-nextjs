@@ -51,6 +51,7 @@ export async function deleteGiftcardAction(giftcardId: number) {
   const db = getDbSync();
   db.update(giftcards).set({ deleted: true }).where(eq(giftcards.giftcardId, giftcardId)).run();
   revalidatePath("/giftcards");
+  redirect("/giftcards");
 }
 import { getAll as listAll, getInfo as info, getSearchSuggestions, getTotalRows, search } from "@/lib/giftcards/repository";
 

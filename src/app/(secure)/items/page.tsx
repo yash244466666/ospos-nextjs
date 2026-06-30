@@ -46,7 +46,7 @@ export default async function ItemsPage({
           <Link href="/items/generate-barcodes" className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-medium border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
             <Barcode className="w-4 h-4" /> Barcodes
           </Link>
-          <Link href="/items/new" className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-medium bg-[var(--color-accent)] hover:bg-emerald-700 text-white rounded-lg transition-colors shadow-sm">
+          <Link href="/items/new" className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-medium bg-[var(--color-accent)] hover:bg-emerald-700 text-white rounded-lg transition-colors shadow-sm" data-testid="new-button">
             <Plus className="w-4 h-4" /> New Item
           </Link>
         </div>
@@ -58,17 +58,19 @@ export default async function ItemsPage({
           name="q"
           defaultValue={sp.q ?? ""}
           placeholder="Search items by name, number or description"
+          data-testid="search-input"
           className="flex-1 min-w-[16rem] border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]"
         />
         <select
           name="location"
           defaultValue={stockLocationId?.toString() ?? ""}
+          data-testid="location-select"
           className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
         >
           <option value="">All locations</option>
           {locations.map((l) => <option key={l.locationId} value={l.locationId}>{l.locationName}</option>)}
         </select>
-        <button type="submit" className="px-4 py-2 bg-[var(--color-primary)] hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors">
+        <button type="submit" className="px-4 py-2 bg-[var(--color-primary)] hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors" data-testid="search-button">
           Search
         </button>
         {sp.q && (
@@ -76,7 +78,7 @@ export default async function ItemsPage({
         )}
       </form>
 
-      <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-sm overflow-hidden" data-testid="data-table">
         <ItemsTable rows={rows} locations={locations} currentLocation={stockLocationId} />
       </div>
     </div>

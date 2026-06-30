@@ -15,6 +15,13 @@
       "when": 1782730799763,
       "tag": "0001_spotty_giant_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1782750615681,
+      "tag": "0002_slow_madame_web",
+      "breakpoints": true
     }
   ]
 }

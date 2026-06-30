@@ -34,6 +34,7 @@ export function ItemsTable({
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && applySearch()}
           placeholder="Search items..."
+          data-testid="table-search-input"
           className="flex-1 min-w-48 border border-slate-300 rounded px-3 py-1.5"
         />
         <select

@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDbSync } from "@/lib/db";
-import { items, itemsTaxes, taxCodeLinks, taxJurisdictions, taxCodes, taxCategories, customers, sales } from "@/db/schema";
+import { items, itemsTaxes, taxCodeLinks, taxJurisdictions, taxCodes, taxCategories, customers, people, sales } from "@/db/schema";
 import { getConfigBool, getConfigNumber, getConfig, taxDecimals, totalsDecimals } from "@/lib/config";
 import { ROUNDING_MODE, TAX_TYPE } from "@/lib/constants";
 
@@ -120,34 +120,86 @@ export function getIncludedTax(quantity: number, price: number, discountPercent:
   return roundNumber(total - exclBase, roundingCode, taxDec);
 }
 
-export function getTaxes(cart: CartLine[]): { taxes: SaleTaxGroup[]; itemTaxes: ItemTax[] } {
+export function getTaxes(
+  cart: CartLine[],
+  customerId?: number | null,
+  registerMode = "sale"
+): { taxes: SaleTaxGroup[]; itemTaxes: ItemTax[] } {
   const taxIncluded = getConfigBool("tax_included", false);
   const useDestinationBased = getConfigBool("use_destination_based_tax", false);
   const db = getDbSync();
   const accumulator = new Map<string, SaleTaxGroup>();
   const itemTaxes: ItemTax[] = [];
 
+  let customerCity: string | null = null;
+  let customerState: string | null = null;
+  let customerSalesTaxCodeId: number | null = null;
+  if (customerId) {
+    const customer = db
+      .select({
+        taxable: customers.taxable,
+        city: people.city,
+        state: people.state,
+        salesTaxCodeId: customers.salesTaxCodeId,
+      })
+      .from(customers)
+      .innerJoin(people, eq(people.personId, customers.personId))
+      .where(eq(customers.personId, customerId))
+      .get();
+    if (customer?.taxable === false) {
+      return { taxes: [], itemTaxes: [] };
+    }
+    if (customer) {
+      customerCity = customer.city ?? null;
+      customerState = customer.state ?? null;
+      customerSalesTaxCodeId = customer.salesTaxCodeId ?? null;
+    }
+  }
+
   for (const [idx, line] of cart.entries()) {
     const basis = getItemTotal(line.quantity, line.price, line.discount, line.discountType, true);
     let rates: { name: string; percent: number; taxType: number; roundCode: number; cascadeSequence: number }[] = [];
 
     if (useDestinationBased && line.taxCategoryId) {
-      const defs = db
-        .select({
-          name: taxJurisdictions.jurisdictionName,
-          percent: taxJurisdictions.taxRate,
-          roundCode: taxJurisdictions.roundCode,
-          cascadeSequence: taxJurisdictions.cascadeSequence,
-          taxType: taxJurisdictions.taxType,
-        })
-        .from(taxCodeLinks)
-        .innerJoin(taxJurisdictions, eq(taxJurisdictions.jurisdictionId, taxCodeLinks.jurisdictionId))
-        .where(eq(taxCodeLinks.taxCategoryId, line.taxCategoryId))
-        .all()
-        .map((r) => ({ ...r, taxType: r.taxType === "INCLUDED" ? 0 : 1 }));
-      rates = defs;
+      const taxed = applyDestinationTax(
+        line,
+        customerCity,
+        customerState,
+        customerSalesTaxCodeId,
+        registerMode,
+        null,
+        accumulator,
+        itemTaxes,
+        idx + 1
+      );
+      if (taxed) continue;
+    }
+
+    const itemRows = db.select().from(itemsTaxes).where(eq(itemsTaxes.itemId, line.itemId)).all();
+    if (itemRows.length === 0 && !useDestinationBased) {
+      const default1Name = getConfig("default_tax_1_name");
+      const default1Rate = Number(getConfig("default_tax_1_rate", "0"));
+      if (default1Name && default1Rate !== 0) {
+        rates.push({
+          name: default1Name,
+          percent: default1Rate,
+          taxType: taxIncluded ? 0 : 1,
+          roundCode: ROUNDING_MODE.HALF_UP,
+          cascadeSequence: 0,
+        });
+      }
+      const default2Name = getConfig("default_tax_2_name");
+      const default2Rate = Number(getConfig("default_tax_2_rate", "0"));
+      if (default2Name && default2Rate !== 0) {
+        rates.push({
+          name: default2Name,
+          percent: default2Rate,
+          taxType: taxIncluded ? 0 : 1,
+          roundCode: ROUNDING_MODE.HALF_UP,
+          cascadeSequence: 0,
+        });
+      }
     } else {
-      const itemRows = db.select().from(itemsTaxes).where(eq(itemsTaxes.itemId, line.itemId)).all();
       rates = itemRows.map((r) => ({
         name: r.name,
         percent: r.percent,
@@ -161,11 +213,10 @@ export function getTaxes(cart: CartLine[]): { taxes: SaleTaxGroup[]; itemTaxes: 
     for (const rate of rates) {
       let taxAmount: number;
       if (rate.taxType === 0) {
-        taxAmount = basis - basis / ((100 + rate.percent) / 100);
+        taxAmount = getIncludedTax(line.quantity, line.price, line.discount, line.discountType, rate.percent, taxDecimals(), rate.roundCode);
       } else {
-        taxAmount = cumulativeBasis * (rate.percent / 100);
+        taxAmount = getTaxForAmount(cumulativeBasis, rate.percent, rate.roundCode, taxDecimals());
       }
-      taxAmount = roundNumber(taxAmount, rate.roundCode, taxDecimals());
       const groupKey = `X${rate.percent}% ${rate.name}`;
       const existing = accumulator.get(groupKey);
       if (existing) {
@@ -226,12 +277,24 @@ export function roundTaxes(taxes: SaleTaxGroup[]): SaleTaxGroup[] {
   }));
 }
 
-export function applyDestinationTax(item: CartLine, city: string | null, state: string | null, salesTaxCodeId: number | null, registerMode: string, saleId: number | null, taxes: SaleTaxGroup[], itemTaxes: ItemTax[], line: number): boolean {
+export function applyDestinationTax(
+  item: CartLine,
+  city: string | null,
+  state: string | null,
+  salesTaxCodeId: number | null,
+  registerMode: string,
+  saleId: number | null,
+  accumulator: Map<string, SaleTaxGroup>,
+  itemTaxes: ItemTax[],
+  line: number
+): boolean {
   const db = getDbSync();
-  const codeId = salesTaxCodeId ?? getConfigNumber("default_tax_code", 0);
+  const codeId = getApplicableTaxCode(registerMode, city, state, salesTaxCodeId);
   if (!codeId) return false;
   const codes = db.select().from(taxCodes).where(eq(taxCodes.taxCodeId, codeId)).get();
   if (!codes) return false;
+
+  if (!item.taxCategoryId) return false;
   const links = db
     .select({
       taxRate: taxCodeLinks.taxRate,
@@ -243,44 +306,85 @@ export function applyDestinationTax(item: CartLine, city: string | null, state: 
     })
     .from(taxCodeLinks)
     .innerJoin(taxJurisdictions, eq(taxJurisdictions.jurisdictionId, taxCodeLinks.jurisdictionId))
-    .where(eq(taxCodeLinks.taxCodeId, codeId))
+    .where(and(eq(taxCodeLinks.taxCodeId, codeId), eq(taxCodeLinks.taxCategoryId, item.taxCategoryId)))
     .all();
+  if (links.length === 0) return false;
+
   const basis = getItemTotal(item.quantity, item.price, item.discount, item.discountType, true);
   let cumulativeBasis = basis;
+  let lastCascadeSequence = 0;
+  let cascadeTaxAmount = 0;
+
   for (const link of links) {
-    const taxAmount = roundNumber(cumulativeBasis * (link.taxRate / 100), link.roundCode, taxDecimals());
-    const groupKey = `X${link.taxRate}% ${link.jurisdictionName}`;
-    updateTaxes(taxes, {
-      taxType: link.taxType === "INCLUDED" ? 0 : 1,
-      roundCode: link.roundCode,
-      taxGroup: groupKey,
-      saleTaxBasis: cumulativeBasis,
-      saleTaxAmount: taxAmount,
-    });
+    const cascadeSequence = link.cascadeSequence;
+    if (cascadeSequence !== lastCascadeSequence) {
+      lastCascadeSequence = cascadeSequence;
+      cumulativeBasis = roundNumber(basis + cascadeTaxAmount, ROUNDING_MODE.HALF_UP, 4);
+    }
+
+    const taxType = link.taxType === "INCLUDED" ? 0 : 1;
+    let taxAmount: number;
+    if (taxType === 0) {
+      taxAmount = getIncludedTax(item.quantity, item.price, item.discount, item.discountType, link.taxRate, taxDecimals(), link.roundCode);
+    } else {
+      taxAmount = getTaxForAmount(cumulativeBasis, link.taxRate, link.roundCode, taxDecimals());
+      cascadeTaxAmount = roundNumber(cascadeTaxAmount + taxAmount, ROUNDING_MODE.HALF_UP, 4);
+    }
+
+    const groupName = link.taxGroup ?? link.jurisdictionName;
+    const groupKey = `X${link.taxRate}% ${groupName}`;
+    const existing = accumulator.get(groupKey);
+    if (existing) {
+      existing.saleTaxBasis = roundNumber(existing.saleTaxBasis + cumulativeBasis, ROUNDING_MODE.HALF_UP, 4);
+      existing.saleTaxAmount = roundNumber(existing.saleTaxAmount + taxAmount, ROUNDING_MODE.HALF_UP, 4);
+    } else {
+      accumulator.set(groupKey, {
+        taxType,
+        roundCode: link.roundCode,
+        taxGroup: groupKey,
+        saleTaxBasis: roundNumber(cumulativeBasis, ROUNDING_MODE.HALF_UP, 4),
+        saleTaxAmount: roundNumber(taxAmount, ROUNDING_MODE.HALF_UP, 4),
+      });
+    }
+
     itemTaxes.push({
       itemId: item.itemId,
       line,
-      name: link.jurisdictionName,
+      name: groupName,
       percent: link.taxRate,
-      taxType: link.taxType === "INCLUDED" ? 0 : 1,
+      taxType,
       roundCode: link.roundCode,
-      cascadeSequence: link.cascadeSequence,
+      cascadeSequence,
       itemTaxAmount: taxAmount,
     });
-    if (link.cascadeSequence > 0) {
-      cumulativeBasis = roundNumber(cumulativeBasis + taxAmount, ROUNDING_MODE.HALF_UP, 4);
-    }
   }
+  void saleId;
   return true;
 }
 
-export function getApplicableTaxCode(registerMode: string, city: string | null, state: string | null, salesTaxCodeId: number | null): { taxCodeId: number; taxCode: string } | null {
+export function getApplicableTaxCode(registerMode: string, city: string | null, state: string | null, salesTaxCodeId: number | null): number {
   const db = getDbSync();
-  const codeId = salesTaxCodeId ?? getConfigNumber("default_tax_code", 0);
-  if (!codeId) return null;
-  const row = db.select().from(taxCodes).where(eq(taxCodes.taxCodeId, codeId)).get();
-  if (!row) return null;
-  return { taxCodeId: row.taxCodeId, taxCode: row.taxCode };
+  const defaultCode = getConfigNumber("default_tax_code", 0);
+  if (registerMode === "sale") return defaultCode;
+  if (salesTaxCodeId) return salesTaxCodeId;
+
+  const cleanCity = clean(city ?? "");
+  const cleanState = clean(state ?? "");
+  const exact = db
+    .select()
+    .from(taxCodes)
+    .where(and(eq(taxCodes.city, cleanCity), eq(taxCodes.state, cleanState), eq(taxCodes.deleted, false)))
+    .all();
+  if (exact.length === 1) return exact[0].taxCodeId;
+
+  const stateOnly = db
+    .select()
+    .from(taxCodes)
+    .where(and(eq(taxCodes.city, ""), eq(taxCodes.state, cleanState), eq(taxCodes.deleted, false)))
+    .all();
+  if (stateOnly.length === 1) return stateOnly[0].taxCodeId;
+
+  return defaultCode;
 }
 
 export function clean(s: string | null | undefined): string {

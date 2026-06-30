@@ -29,13 +29,14 @@ export async function saveCashupAction(formData: FormData) {
     employeeId,
   });
   revalidatePath("/cashups");
-  redirect(`/cashups/new/${id}`);
+  redirect("/cashups");
 }
 
 export async function deleteCashupAction(cashupId: number) {
   await requirePermission("cashups");
   deleteCashup(cashupId);
   revalidatePath("/cashups");
+  redirect("/cashups");
 }
 
 export async function searchCashupsAction(filters: any) {

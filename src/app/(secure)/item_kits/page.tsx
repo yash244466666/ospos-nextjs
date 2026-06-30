@@ -12,9 +12,11 @@ export default async function ItemKitsPage() {
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl">Item Kits</h1>
-        <Link href="/item_kits/new/0" className="bg-blue-600 text-white px-3 py-1 rounded text-sm">New Kit</Link>
+        <Link href="/item_kits/new/0" className="bg-blue-600 text-white px-3 py-1 rounded text-sm" data-testid="new-button">New Kit</Link>
       </div>
-      <ItemKitTable rows={rows} />
+      <div data-testid="data-table">
+        <ItemKitTable rows={rows} />
+      </div>
     </div>
   );
 }

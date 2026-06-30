@@ -13,9 +13,11 @@ export default async function GiftcardsPage() {
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl">Gift Cards</h1>
-        <Link href="/giftcards/new/0" className="bg-blue-600 text-white px-3 py-1 rounded text-sm">New Giftcard</Link>
+        <Link href="/giftcards/new/0" className="bg-blue-600 text-white px-3 py-1 rounded text-sm" data-testid="new-button">New Giftcard</Link>
       </div>
-      <GiftcardsTable rows={rows} />
+      <div data-testid="data-table">
+        <GiftcardsTable rows={rows} />
+      </div>
     </div>
   );
 }

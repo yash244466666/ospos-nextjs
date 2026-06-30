@@ -3,7 +3,9 @@ import { getTaxes, roundNumber } from "./index";
 import { ROUNDING_MODE } from "@/lib/constants";
 import { setConfig } from "@/lib/config";
 import { getDbSync } from "@/lib/db";
-import { items, itemsTaxes } from "@/db/schema";
+import {
+  items, itemsTaxes, people, customers, taxCategories, taxJurisdictions, taxCodes, taxCodeLinks,
+} from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 beforeAll(() => {
@@ -80,5 +82,123 @@ describe("Tax_lib port", () => {
       { itemId: 9004, quantity: 1, price: 100, discount: 10, discountType: 0, taxCategoryId: null, isSerialized: false },
     ]);
     expect(itemTaxes[0].itemTaxAmount).toBeCloseTo(9, 2);
+  });
+
+  it("falls back to default taxes when item has none", () => {
+    setConfig("use_destination_based_tax", "0");
+    setConfig("default_tax_1_name", "Sales Tax");
+    setConfig("default_tax_1_rate", "10");
+    setConfig("default_tax_2_name", "");
+    setConfig("default_tax_2_rate", "0");
+    const db = getDbSync();
+    insertItem(db, 9005, 100);
+    setTaxes(db, 9005, []);
+    const { taxes, itemTaxes } = getTaxes([
+      { itemId: 9005, quantity: 1, price: 100, discount: 0, discountType: 0, taxCategoryId: null, isSerialized: false },
+    ]);
+    expect(itemTaxes).toHaveLength(1);
+    expect(itemTaxes[0].itemTaxAmount).toBeCloseTo(10, 2);
+    expect(taxes[0].saleTaxAmount).toBeCloseTo(10, 2);
+  });
+
+  it("returns empty taxes for non-taxable customers", () => {
+    const db = getDbSync();
+    const person = db.insert(people).values({ firstName: "TaxExempt" }).returning().get();
+    db.insert(customers).values({ personId: person.personId, taxable: false }).run();
+    insertItem(db, 9006, 100);
+    setTaxes(db, 9006, [{ name: "VAT", percent: 10 }]);
+    const { taxes, itemTaxes } = getTaxes(
+      [{ itemId: 9006, quantity: 1, price: 100, discount: 0, discountType: 0, taxCategoryId: null, isSerialized: false }],
+      person.personId
+    );
+    expect(taxes).toHaveLength(0);
+    expect(itemTaxes).toHaveLength(0);
+  });
+
+  it("destination-based tax matches by customer city/state", () => {
+    setConfig("use_destination_based_tax", "1");
+    setConfig("default_tax_code", "0");
+    const db = getDbSync();
+
+    const category = db.insert(taxCategories).values({ taxCategory: "Standard", deleted: false }).returning().get();
+    const jurisdiction = db.insert(taxJurisdictions).values({
+      jurisdictionName: "NY State",
+      taxType: "EXCLUDED",
+      taxGroup: "NY",
+      taxRate: 8,
+      roundCode: 1,
+      cascadeSequence: 0,
+      deleted: false,
+    }).returning().get();
+    const code = db.insert(taxCodes).values({ taxCode: "NY", taxCodeName: "New York", city: "", state: "NY", deleted: false }).returning().get();
+    db.insert(taxCodeLinks).values({
+      taxCodeId: code.taxCodeId,
+      taxCategoryId: category.taxCategoryId,
+      jurisdictionId: jurisdiction.jurisdictionId,
+      taxRate: 8,
+      roundCode: 1,
+      cascadeSequence: 0,
+    }).run();
+
+    const person = db.insert(people).values({ firstName: "NY", city: "", state: "NY" }).returning().get();
+    db.insert(customers).values({ personId: person.personId, taxable: true, salesTaxCodeId: null }).run();
+    insertItem(db, 9007, 100);
+    db.update(items).set({ taxCategoryId: category.taxCategoryId }).where(eq(items.itemId, 9007)).run();
+    setTaxes(db, 9007, []);
+
+    const { taxes, itemTaxes } = getTaxes(
+      [{ itemId: 9007, quantity: 1, price: 100, discount: 0, discountType: 0, taxCategoryId: category.taxCategoryId, isSerialized: false }],
+      person.personId,
+      "return"
+    );
+    expect(itemTaxes).toHaveLength(1);
+    expect(itemTaxes[0].itemTaxAmount).toBeCloseTo(8, 2);
+    expect(taxes[0].saleTaxAmount).toBeCloseTo(8, 2);
+  });
+
+  it("destination-based tax compounds when cascade sequence changes", () => {
+    setConfig("use_destination_based_tax", "1");
+    setConfig("default_tax_code", "0");
+    const db = getDbSync();
+
+    const category = db.insert(taxCategories).values({ taxCategory: "Compound", deleted: false }).returning().get();
+    const j1 = db.insert(taxJurisdictions).values({
+      jurisdictionName: "State",
+      taxType: "EXCLUDED",
+      taxGroup: "State",
+      taxRate: 10,
+      roundCode: 1,
+      cascadeSequence: 0,
+      deleted: false,
+    }).returning().get();
+    const j2 = db.insert(taxJurisdictions).values({
+      jurisdictionName: "Local",
+      taxType: "EXCLUDED",
+      taxGroup: "Local",
+      taxRate: 5,
+      roundCode: 1,
+      cascadeSequence: 1,
+      deleted: false,
+    }).returning().get();
+    const code = db.insert(taxCodes).values({ taxCode: "C", taxCodeName: "Compound", city: "", state: "", deleted: false }).returning().get();
+    db.insert(taxCodeLinks).values({ taxCodeId: code.taxCodeId, taxCategoryId: category.taxCategoryId, jurisdictionId: j1.jurisdictionId, taxRate: 10, roundCode: 1, cascadeSequence: 0 }).run();
+    db.insert(taxCodeLinks).values({ taxCodeId: code.taxCodeId, taxCategoryId: category.taxCategoryId, jurisdictionId: j2.jurisdictionId, taxRate: 5, roundCode: 1, cascadeSequence: 1 }).run();
+
+    const person = db.insert(people).values({ firstName: "C" }).returning().get();
+    db.insert(customers).values({ personId: person.personId, taxable: true, salesTaxCodeId: code.taxCodeId }).run();
+    insertItem(db, 9008, 100);
+    db.update(items).set({ taxCategoryId: category.taxCategoryId }).where(eq(items.itemId, 9008)).run();
+    setTaxes(db, 9008, []);
+
+    const { itemTaxes } = getTaxes(
+      [{ itemId: 9008, quantity: 1, price: 100, discount: 0, discountType: 0, taxCategoryId: category.taxCategoryId, isSerialized: false }],
+      person.personId,
+      "return"
+    );
+    expect(itemTaxes).toHaveLength(2);
+    const stateTax = itemTaxes.find((t) => t.name === "State");
+    const localTax = itemTaxes.find((t) => t.name === "Local");
+    expect(stateTax?.itemTaxAmount).toBeCloseTo(10, 2);
+    expect(localTax?.itemTaxAmount).toBeCloseTo(5.5, 2);
   });
 });

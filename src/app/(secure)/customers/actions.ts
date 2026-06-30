@@ -45,13 +45,14 @@ export async function saveCustomerAction(formData: FormData) {
     points: parseInt((formData.get("points") as string) || "0", 10) || 0,
   });
   revalidatePath("/customers");
-  redirect(`/customers/new/${id}`);
+  redirect("/customers");
 }
 
 export async function deleteCustomerAction(personId: number) {
   await requirePermission("customers");
   deleteCustomer(personId);
   revalidatePath("/customers");
+  redirect("/customers");
 }
 
 export async function searchCustomersAction(search: string) {

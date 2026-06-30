@@ -40,6 +40,7 @@ export interface SalePayment {
   employeeId: number;
   paymentTime: number;
   saleId?: number;
+  siblingId?: string;
 }
 
 export interface SaleCart {

@@ -1,5 +1,6 @@
 import { createSqliteDb } from "@/lib/db/sqlite";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { eq } from "drizzle-orm";
 import { hash } from "bcryptjs";
 import path from "node:path";
 import {
@@ -144,7 +145,16 @@ const PERMISSION_DEFS = [
   { id: "reports_discounts", moduleId: "reports" },
   { id: "reports_payments", moduleId: "reports" },
   { id: "reports_cashups", moduleId: "reports" },
+  { id: "reports_categories", moduleId: "reports" },
+  { id: "items_stock", moduleId: "items", locationId: 1 },
+  { id: "sales_stock", moduleId: "sales", locationId: 1 },
+  { id: "receivings_stock", moduleId: "receivings", locationId: 1 },
+  { id: "sales_delete", moduleId: "sales" },
+  { id: "sales_change_price", moduleId: "sales" },
   { id: "sales", moduleId: "sales" },
+  { id: "office", moduleId: "office" },
+  { id: "home", moduleId: "home" },
+  { id: "module_home", moduleId: "home" },
   { id: "suppliers", moduleId: "suppliers" },
   { id: "attributes", moduleId: "attributes" },
   { id: "expenses", moduleId: "expenses" },
@@ -153,11 +163,17 @@ const PERMISSION_DEFS = [
   { id: "cashups", moduleId: "cashups" },
 ];
 
-async function seed() {
+export async function seedDatabase() {
   const db = createSqliteDb();
   const migrationsFolder = path.resolve(process.cwd(), "drizzle/sqlite");
   console.log("Running migrations...");
   migrate(db, { migrationsFolder });
+
+  const existing = db.select().from(employees).where(eq(employees.username, "admin")).get();
+  if (existing) {
+    console.log("Seed already present; skipping.");
+    return existing.personId;
+  }
 
   console.log("Seeding initial data...");
   const adminHash = await hash("pointofsale", BCRYPT_COST);
@@ -213,9 +229,14 @@ async function seed() {
   }
 
   console.log("Seed complete. Admin login: admin / pointofsale");
+  return adminPerson.personId;
 }
 
-seed().catch((err) => {
+async function main() {
+  await seedDatabase();
+}
+
+main().catch((err) => {
   console.error("Seed failed:", err);
   process.exit(1);
 });

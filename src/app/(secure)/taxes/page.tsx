@@ -27,9 +27,11 @@ export default async function TaxesPage() {
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl">Tax Rates</h1>
-        <Link href="/taxes/new/0" className="bg-blue-600 text-white px-3 py-1 rounded text-sm">New</Link>
+        <Link href="/taxes/new/0" className="bg-blue-600 text-white px-3 py-1 rounded text-sm" data-testid="new-button">New</Link>
       </div>
-      <TaxRateTable rows={rates} />
+      <div data-testid="data-table">
+        <TaxRateTable rows={rates} />
+      </div>
     </div>
   );
 }

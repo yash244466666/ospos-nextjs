@@ -11,12 +11,14 @@ export default async function EmployeesPage({ searchParams }: { searchParams: Pr
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl">Employees</h1>
-        <Link href="/employees/new/0" className="bg-blue-600 text-white px-3 py-1 rounded text-sm">New Employee</Link>
+        <Link href="/employees/new/0" className="bg-blue-600 text-white px-3 py-1 rounded text-sm" data-testid="new-button">New Employee</Link>
       </div>
       <form className="mb-3">
-        <input type="text" name="q" defaultValue={q} placeholder="Search…" className="border px-2 py-1 w-full" />
+        <input type="text" name="q" defaultValue={q} placeholder="Search…" data-testid="search-input" className="border px-2 py-1 w-full" />
       </form>
-      <EmployeesTable rows={rows} />
+      <div data-testid="data-table">
+        <EmployeesTable rows={rows} />
+      </div>
     </div>
   );
 }

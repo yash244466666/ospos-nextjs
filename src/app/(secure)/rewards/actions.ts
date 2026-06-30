@@ -22,7 +22,7 @@ export async function saveRewardAction(formData: FormData) {
     outId = db.insert(rewards).values({ name, pointsPercent, deleted: false }).returning({ id: rewards.rewardId }).get().id;
   }
   revalidatePath("/rewards");
-  redirect(`/rewards/new/${outId}`);
+  redirect("/rewards");
 }
 
 export async function deleteRewardAction(rewardId: number) {
@@ -30,6 +30,7 @@ export async function deleteRewardAction(rewardId: number) {
   const db = getDbSync();
   db.update(rewards).set({ deleted: true }).where(eq(rewards.rewardId, rewardId)).run();
   revalidatePath("/rewards");
+  redirect("/rewards");
 }
 import { getAll as listAll, getInfo as info, getPointsPercent } from "@/lib/rewards/repository";
 export async function getRewardRowAction(id: number) { await requirePermission("rewards"); return info(id); }

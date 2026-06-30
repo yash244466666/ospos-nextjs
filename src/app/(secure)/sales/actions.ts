@@ -22,7 +22,7 @@ export async function getCartAction() {
   const session = await auth();
   if (!session?.user?.personId) return null;
   const cart = await getCart();
-  const { taxes, itemTaxes } = getTaxes(cart.cart);
+  const { taxes, itemTaxes } = getTaxes(cart.cart, cart.customerId, cart.mode);
   const taxTotal = taxes.reduce((s, t) => s + t.saleTaxAmount, 0);
   const totals = getCartTotals(cart.cart, taxTotal, getConfig("tax_included", "0") === "1");
   return { cart, taxes, itemTaxes, totals };
@@ -35,7 +35,13 @@ export async function suggestItemsAction(term: string) {
 }
 
 export async function addItemAction(itemInput: string, quantity = 1) {
-  await addItem(itemInput, quantity);
+  const trimmed = itemInput.trim();
+  if (/^POS\s+\d+$/i.test(trimmed)) {
+    const cart = await getCart();
+    await returnEntireSale(cart, trimmed);
+  } else {
+    await addItem(itemInput, quantity);
+  }
   revalidatePath("/sales/register");
 }
 
@@ -148,7 +154,7 @@ export async function suspendAction() {
   if (!session?.user?.personId) redirect("/login");
   const cart = await getCart();
   if (cart.cart.length === 0) throw new Error("Cart is empty");
-  const { taxes, itemTaxes } = getTaxes(cart.cart);
+  const { taxes, itemTaxes } = getTaxes(cart.cart, cart.customerId, cart.mode);
   const taxTotal = taxes.reduce((s, t) => s + t.saleTaxAmount, 0);
   const totals = getCartTotals(cart.cart, taxTotal, getConfig("tax_included", "0") === "1");
   await suspendSale({
@@ -183,7 +189,7 @@ export async function completeSaleAction() {
   if (!session?.user?.personId) redirect("/login");
   const cart = await getCart();
   if (cart.cart.length === 0) throw new Error("Cart is empty");
-  const { taxes, itemTaxes } = getTaxes(cart.cart);
+  const { taxes, itemTaxes } = getTaxes(cart.cart, cart.customerId, cart.mode);
   const taxTotal = taxes.reduce((s, t) => s + t.saleTaxAmount, 0);
   const totals = getCartTotals(cart.cart, taxTotal, getConfig("tax_included", "0") === "1");
   const result = await completeSale({

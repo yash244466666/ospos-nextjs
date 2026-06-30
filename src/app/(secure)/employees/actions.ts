@@ -60,7 +60,7 @@ export async function saveEmployeeAction(formData: FormData) {
     grants: grantsList,
   });
   revalidatePath("/employees");
-  redirect(`/employees/new/${id}`);
+  redirect("/employees");
 }
 
 export async function deleteEmployeeAction(personId: number) {
@@ -70,6 +70,7 @@ export async function deleteEmployeeAction(personId: number) {
   if (!isAdmin(session!.user.personId as number)) throw new Error("Admin only");
   deleteEmployee(personId);
   revalidatePath("/employees");
+  redirect("/employees");
 }
 
 export async function searchEmployeesAction(term: string) {

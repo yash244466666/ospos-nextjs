@@ -59,9 +59,9 @@ export default function ItemKitForm({ initial, kitItems }: { initial: Initial | 
   }
 
   return (
-    <form className="p-4 max-w-2xl space-y-3" action={onSubmit}>
+    <form className="p-4 max-w-2xl space-y-3" data-testid="entity-form" action={onSubmit}>
       <h1 className="text-xl">{initial ? "Edit" : "New"} Item Kit</h1>
-      {error && <div className="text-red-600 text-sm">{error}</div>}
+      {error && <div className="text-red-600 text-sm" data-testid="form-error">{error}</div>}
       <input type="hidden" name="itemKitId" value={initial?.itemKitId ?? 0} />
       <div>
         <label className="block text-sm">Kit Number</label>
@@ -130,7 +130,7 @@ export default function ItemKitForm({ initial, kitItems }: { initial: Initial | 
                   <input type="number" value={l.kitSequence} onChange={(e) => updateLine(i, { kitSequence: Number(e.target.value) })} className="border px-1 py-1 w-14" />
                 </td>
                 <td className="p-1">
-                  <select value={l.itemId} onChange={(e) => updateLine(i, { itemId: Number(e.target.value) })} className="border px-1 py-1 w-full">
+                  <select value={l.itemId} onChange={(e) => updateLine(i, { itemId: Number(e.target.value) })} className="border px-1 py-1 w-full" data-testid="kit-item-select">
                     <option value="0">— Select —</option>
                     {itemOptions.map((it) => (
                       <option key={it.itemId} value={it.itemId}>
@@ -151,7 +151,7 @@ export default function ItemKitForm({ initial, kitItems }: { initial: Initial | 
         </table>
       </div>
 
-      <button type="submit" disabled={pending} className="bg-blue-600 text-white px-4 py-1 rounded disabled:opacity-50">
+      <button type="submit" disabled={pending} className="bg-blue-600 text-white px-4 py-1 rounded disabled:opacity-50" data-testid="save-button">
         {pending ? "Saving…" : "Save"}
       </button>
     </form>

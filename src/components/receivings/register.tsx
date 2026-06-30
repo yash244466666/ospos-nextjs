@@ -23,6 +23,7 @@ export default function Register(props: Props) {
   return (
     <div className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="lg:col-span-2 space-y-4">
+        <h1 className="text-xl font-semibold text-slate-900">Receiving</h1>
         <div className="flex gap-2">
           <input
             className="border px-2 py-1 flex-1"

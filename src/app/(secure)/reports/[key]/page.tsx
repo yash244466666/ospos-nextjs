@@ -18,5 +18,13 @@ export default async function ReportPage({
   await requirePermission("reports", subperm);
   const filters = await searchParams;
   const rows = runReport(def, { start: filters.start, end: filters.end });
-  return <ReportView def={def} rows={rows} initialStart={filters.start ?? ""} initialEnd={filters.end ?? ""} />;
+  const serializableDef = {
+    key: def.key,
+    title: def.title,
+    permission: def.permission,
+    hasDateRange: def.hasDateRange,
+    columns: def.columns,
+    chart: def.chart,
+  };
+  return <ReportView def={serializableDef} rows={rows} initialStart={filters.start ?? ""} initialEnd={filters.end ?? ""} />;
 }

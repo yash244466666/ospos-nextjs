@@ -27,13 +27,14 @@ export default function SupplierForm({ initial }: { initial: Initial | null }) {
   return (
     <form
       className="p-4 max-w-2xl space-y-3"
+      data-testid="entity-form"
       action={(fd) => {
         setError(null);
         start(() => saveSupplierAction(fd).catch((e) => setError((e as Error).message)));
       }}
     >
       <h1 className="text-xl">{initial ? "Edit" : "New"} Supplier</h1>
-      {error && <div className="text-red-600 text-sm">{error}</div>}
+      {error && <div className="text-red-600 text-sm" data-testid="form-error">{error}</div>}
       <input type="hidden" name="personId" value={initial?.personId ?? 0} />
       <div className="grid grid-cols-2 gap-2">
         <Field label="First Name" name="firstName" defaultValue={initial?.firstName ?? ""} required />
@@ -54,7 +55,7 @@ export default function SupplierForm({ initial }: { initial: Initial | null }) {
         <label className="block text-sm">Comments</label>
         <textarea name="comments" defaultValue={initial?.comments ?? ""} className="border px-2 py-1 w-full" />
       </div>
-      <button type="submit" disabled={pending} className="bg-blue-600 text-white px-4 py-1 rounded disabled:opacity-50">
+      <button type="submit" disabled={pending} className="bg-blue-600 text-white px-4 py-1 rounded disabled:opacity-50" data-testid="save-button">
         {pending ? "Saving…" : "Save"}
       </button>
     </form>

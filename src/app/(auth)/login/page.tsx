@@ -63,6 +63,7 @@ export default function LoginPage() {
                   onChange={(e) => setUsername(e.target.value)}
                   autoFocus
                   required
+                  data-testid="login-username"
                   className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]"
                   placeholder="admin"
                 />
@@ -79,6 +80,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  data-testid="login-password"
                   className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]"
                   placeholder="••••••••"
                 />
@@ -86,6 +88,7 @@ export default function LoginPage() {
             </div>
             {error && (
               <div className="bg-red-50 border border-red-100 text-red-700 text-sm px-4 py-3 rounded-lg"
+                data-testid="login-error"
               >
                 {error}
               </div>
@@ -93,6 +96,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
+              data-testid="login-submit"
               className="w-full bg-[var(--color-accent)] hover:bg-emerald-700 disabled:opacity-60 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               {loading ? (
