@@ -1174,6 +1174,7 @@ The appendices found real upstream defects. The default rule is: **replicate obs
 | UD-20 | `thousands_separator` is a no-op upstream (`setTextAttribute` ineffective) | `10-…supplement.md` §C.3 | **Replicate** grouping behavior or document a fix |
 | UD-21 | Mailchimp connector is inert at runtime due to a constructor `$this->config` bug | `10-…supplement.md` §H.1 | **Decide**: reproduce inertness or implement intended sync; document |
 | UD-22 | CSV item template has a BOM, mixed quoting, no trailing newline; target import does not strip BOM | `10-…supplement.md` §J | **Fix target BOM handling**; match template bytes exactly |
+| UD-23 | Report builders alias a prefixed table to its unprefixed name (`table('sales_items AS sales_items')`); CI4 4.7.4 rewrites the ON/WHERE qualifier to `ospos_sales_items`, so the report SQL fails with "Unknown column" against the `ospos_` prefix | 08-reports.md §4.3; verified by executing `Summary_sales::getData()` against the Dockerized 3.4.3 oracle | **Fix**: the target uses explicit unambiguous aliases; document as a deviation |
 
 ---
 

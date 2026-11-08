@@ -38,6 +38,7 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 | 2026-11-08 | MySQL comment columns are `mediumtext`, not `text` | `CONVERT TO CHARACTER SET utf8mb4` upgrades TEXT to MEDIUMTEXT; verified with the oracle's `SHOW CREATE TABLE` |
 | 2026-11-08 | `invoice_email_message` default is the bare token string | Oracle value confirms the appendix catalog's trailing annotation was not part of the value |
 | 2026-11-08 | E2E logs in per test instead of reusing a stored cookie | OSPOS carts are session-scoped; reusing a JWT shared one cart across tests |
+| 2026-11-08 | Report SQL uses explicit aliases; upstream report models fail against a prefixed table (UD-23) | Executing `Summary_sales::getData()` on the oracle returns “Unknown column 'ospos_sales_items.sale_id' in 'on clause'”; a CI4 builder defect, documented as a deviation |
 
 ## Open follow-ups
 
