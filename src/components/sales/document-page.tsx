@@ -71,7 +71,7 @@ export async function SaleDocument({
               <td className="p-2 text-right">{line.quantity}</td>
               <td className="p-2 text-right">{toCurrency(String(line.unitPrice))}</td>
               <td className="p-2 text-right">
-                {toCurrency(String(line.unitPrice * line.quantity))}
+                {toCurrency(String(line.total ?? line.unitPrice * line.quantity))}
               </td>
             </tr>
           ))}
@@ -79,12 +79,26 @@ export async function SaleDocument({
       </table>
       <div className="mt-2 flex justify-end text-sm">
         <div className="w-56 space-y-1">
+          {data.subtotal !== undefined ? (
+            <div className="flex justify-between">
+              <span>Subtotal</span>
+              <span>{toCurrency(String(data.subtotal))}</span>
+            </div>
+          ) : null}
+          {data.lines.some((line) => (line.discount ?? 0) > 0) ? (
+            <div className="flex justify-between">
+              <span>Discount</span>
+              <span>
+                {toCurrency(
+                  String(data.lines.reduce((total, line) => total + (line.discount ?? 0), 0)),
+                )}
+              </span>
+            </div>
+          ) : null}
           {data.taxes.map((tax, index) => (
             <div key={index} className="flex justify-between">
-              <span>
-                {tax.name} {toCurrency(String(tax.amount))}
-              </span>
-              <span />
+              <span>{tax.name}</span>
+              <span>{toCurrency(String(tax.amount))}</span>
             </div>
           ))}
           <div className="flex justify-between border-t pt-1 font-bold">

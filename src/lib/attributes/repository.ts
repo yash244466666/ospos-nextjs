@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, isNull, like, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { attributeDefinitions, attributeValues, attributeLinks } from "@/db/schema";
+import { toDbDecimal } from "@/lib/money";
 
 export const DEFINITION_TYPES = ["TEXT", "DROPDOWN", "DECIMAL", "DATE", "CHECKBOX", "GROUP"] as const;
 export type DefinitionType = typeof DEFINITION_TYPES[number];
@@ -426,4 +427,106 @@ export async function getLinkValue(
     )
     .limit(1);
   return rows[0] ?? null;
+}
+
+
+/**
+ * Type-aware item attribute save: DATE -> attribute_date, DECIMAL ->
+ * attribute_decimal, CHECKBOX/TEXT/DROPDOWN -> attribute_value. Empty values
+ * remove the link (and leave shared value rows for orphan cleanup).
+ */
+export async function saveTypedItemAttribute(input: {
+  definitionId: number;
+  itemId: number;
+  definitionType: string;
+  value: string | null;
+}): Promise<void> {
+  await withTransaction(async (tx) => {
+    const value = input.value?.trim() ?? "";
+    if (value === "") {
+      await tx
+        .delete(attributeLinks)
+        .where(
+          and(
+            eq(attributeLinks.definitionId, input.definitionId),
+            eq(attributeLinks.itemId, input.itemId),
+            isNull(attributeLinks.saleId),
+            isNull(attributeLinks.receivingId),
+          ),
+        );
+      return;
+    }
+
+    let attributeId: number | null = null;
+    if (input.definitionType === "DATE") {
+      const rows = await tx
+        .select({ id: attributeValues.attributeId })
+        .from(attributeValues)
+        .where(eq(attributeValues.attributeDate, value))
+        .limit(1);
+      attributeId =
+        rows[0]?.id ??
+        (
+          await tx
+            .insert(attributeValues)
+            .values({ attributeDate: value })
+            .returning({ id: attributeValues.attributeId })
+        ).at(0)?.id ??
+        null;
+    } else if (input.definitionType === "DECIMAL") {
+      const numeric = toDbDecimal(value, 3);
+      const rows = await tx
+        .select({ id: attributeValues.attributeId })
+        .from(attributeValues)
+        .where(eq(attributeValues.attributeDecimal, numeric))
+        .limit(1);
+      attributeId =
+        rows[0]?.id ??
+        (
+          await tx
+            .insert(attributeValues)
+            .values({ attributeDecimal: numeric })
+            .returning({ id: attributeValues.attributeId })
+        ).at(0)?.id ??
+        null;
+    } else {
+      const normalized =
+        input.definitionType === "CHECKBOX"
+          ? value === "1" || value.toLowerCase() === "true"
+            ? "1"
+            : "0"
+          : value;
+      const rows = await tx
+        .select({ id: attributeValues.attributeId })
+        .from(attributeValues)
+        .where(eq(attributeValues.attributeValue, normalized))
+        .limit(1);
+      attributeId =
+        rows[0]?.id ??
+        (
+          await tx
+            .insert(attributeValues)
+            .values({ attributeValue: normalized })
+            .returning({ id: attributeValues.attributeId })
+        ).at(0)?.id ??
+        null;
+    }
+
+    if (attributeId === null) throw new Error("Could not store attribute value");
+    await tx
+      .delete(attributeLinks)
+      .where(
+        and(
+          eq(attributeLinks.definitionId, input.definitionId),
+          eq(attributeLinks.itemId, input.itemId),
+          isNull(attributeLinks.saleId),
+          isNull(attributeLinks.receivingId),
+        ),
+      );
+    await tx.insert(attributeLinks).values({
+      attributeId,
+      definitionId: input.definitionId,
+      itemId: input.itemId,
+    });
+  });
 }

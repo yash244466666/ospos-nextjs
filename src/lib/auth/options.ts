@@ -4,6 +4,7 @@ import { verifyPassword } from "./password";
 import { getMenuGroup } from "./rbac";
 import { createAppSession, requestIp } from "@/lib/session";
 import { loadConfig } from "@/lib/config";
+import { isLoginBlocked, recordLoginFailure, recordLoginSuccess } from "./throttle";
 
 const allowedHostnamesRaw = process.env.ALLOWED_HOSTNAMES;
 if (
@@ -32,11 +33,17 @@ export const config = {
         const username = credentials?.username as string | undefined;
         const password = credentials?.password as string | undefined;
         if (!username || !password) return null;
+        const ip = requestIp(request);
+        if (isLoginBlocked(ip, username)) return null;
         const user = await verifyPassword(username, password);
-        if (!user) return null;
+        if (!user) {
+          recordLoginFailure(ip, username);
+          return null;
+        }
+        recordLoginSuccess(ip, username);
         // CI4 regenerates the session id on login; a fresh app session row has
         // no cart state, which is the observable effect of that regeneration.
-        const appSessionId = await createAppSession(user.personId, requestIp(request));
+        const appSessionId = await createAppSession(user.personId, ip);
         const menuGroup = await getMenuGroup("home", user.personId);
         return {
           id: String(user.personId),
@@ -45,7 +52,7 @@ export const config = {
           language: user.language ?? "english",
           languageCode: user.languageCode ?? "en",
           appSessionId,
-          sessionIp: requestIp(request),
+          sessionIp: ip,
           menuGroup,
         };
       },

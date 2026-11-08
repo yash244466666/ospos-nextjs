@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "4d2a528a-97d4-4457-801d-997e40edfc0a",
+  "id": "0df65744-bf69-40e3-8aa3-26986d64ec7b",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "ospos_app_config": {
@@ -1482,7 +1482,7 @@
         },
         "trans_comment": {
           "name": "trans_comment",
-          "type": "text",
+          "type": "mediumtext",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -2348,7 +2348,7 @@
         },
         "comments": {
           "name": "comments",
-          "type": "text",
+          "type": "mediumtext",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -2493,7 +2493,7 @@
         },
         "comment": {
           "name": "comment",
-          "type": "text",
+          "type": "mediumtext",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -2761,7 +2761,7 @@
         },
         "comment": {
           "name": "comment",
-          "type": "text",
+          "type": "mediumtext",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false

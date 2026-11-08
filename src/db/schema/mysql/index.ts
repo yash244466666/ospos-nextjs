@@ -9,6 +9,7 @@ import {
   foreignKey,
   index,
   int,
+  mediumtext,
   primaryKey,
   smallint,
   text,
@@ -81,7 +82,7 @@ export const people = mysqlTable("ospos_people", {
   state: varchar("state", { length: 255 }).notNull(),
   zip: varchar("zip", { length: 255 }).notNull(),
   country: varchar("country", { length: 255 }).notNull(),
-  comments: text("comments").notNull(),
+  comments: mediumtext("comments").notNull(),
 }, (t) => [
   index("email").on(t.email),
   index("first_name").on(
@@ -359,7 +360,7 @@ export const inventory = mysqlTable("ospos_inventory", {
   transItems: int("trans_items").notNull().default(0),
   transUser: int("trans_user").notNull().default(0),
   transDate: timestamp("trans_date", { mode: "string" }).notNull().default(sql`CURRENT_TIMESTAMP`),
-  transComment: text("trans_comment").notNull(),
+  transComment: mediumtext("trans_comment").notNull(),
   transLocation: int("trans_location").notNull(),
   transInventory: dec("trans_inventory", 15, 3).notNull().default("0"),
 }, (t) => [
@@ -469,7 +470,7 @@ export const sales = mysqlTable("ospos_sales", {
   saleTime: timestamp("sale_time", { mode: "string" }).notNull().default(sql`CURRENT_TIMESTAMP`),
   customerId: int("customer_id"),
   employeeId: int("employee_id").notNull().default(0),
-  comment: text("comment").notNull(),
+  comment: mediumtext("comment").notNull(),
   invoiceNumber: varchar("invoice_number", { length: 32 }),
   quoteNumber: varchar("quote_number", { length: 32 }),
   saleStatus: tinyint("sale_status").notNull().default(0),
@@ -660,7 +661,7 @@ export const receivings = mysqlTable("ospos_receivings", {
   receivingTime: timestamp("receiving_time", { mode: "string" }).notNull().default(sql`CURRENT_TIMESTAMP`),
   supplierId: int("supplier_id"),
   employeeId: int("employee_id").notNull().default(0),
-  comment: text("comment").notNull(),
+  comment: mediumtext("comment").notNull(),
   paymentType: varchar("payment_type", { length: 20 }),
   reference: varchar("reference", { length: 32 }),
 }, (t) => [

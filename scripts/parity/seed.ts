@@ -4,6 +4,7 @@ import {
   DINNER_TABLE_SEEDS,
   MODULE_SEEDS,
   PERMISSION_SEEDS,
+  UNGRANTED_PERMISSION_IDS,
   STOCK_LOCATION_SEEDS,
 } from "../../src/db/seed-data";
 import { fail, ok, type Difference } from "./lib";
@@ -67,11 +68,18 @@ async function main(): Promise<void> {
     person_id: number;
     menu_group: string | null;
   }>("SELECT permission_id, person_id, menu_group FROM ospos_grants WHERE person_id = 1");
-  if (grants.length !== 36) {
-    differences.push({ table: "grants", issue: `row count ${grants.length} != 36` });
+  const grantedPermissionCount = PERMISSION_SEEDS.filter(
+    (permission) => !UNGRANTED_PERMISSION_IDS.has(permission.permissionId),
+  ).length;
+  if (grants.length !== grantedPermissionCount) {
+    differences.push({
+      table: "grants",
+      issue: `row count ${grants.length} != ${grantedPermissionCount}`,
+    });
   }
   const grantByPermission = new Map(grants.map((row) => [row.permission_id, row]));
   for (const expected of PERMISSION_SEEDS) {
+    if (UNGRANTED_PERMISSION_IDS.has(expected.permissionId)) continue;
     const actual = grantByPermission.get(expected.permissionId);
     if (!actual) {
       differences.push({ table: "grants", issue: `missing ${expected.permissionId}` });
@@ -155,7 +163,7 @@ async function main(): Promise<void> {
 
   if (differences.length > 0) fail(differences, `Seed parity (${DRIVER})`);
   ok(
-    `Seed parity PASS (${DRIVER}): 18 modules, 36 permissions, 36 grants, 5 packages, 2 tables, 1 location`,
+    `Seed parity PASS (${DRIVER}): 18 modules, 36 permissions, 35 grants, 5 packages, 2 tables, 1 location`,
   );
 }
 

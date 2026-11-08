@@ -15,7 +15,7 @@ import {
   type ItemRow,
 } from "@/lib/items/repository";
 import { getAll as getAllStockLocations } from "@/lib/stock_locations/repository";
-import { listDefinitions, getAttributesByItem, saveAttributeValue, copyAttributeLinks } from "@/lib/attributes/repository";
+import { listDefinitions, getAttributesByItem, saveTypedItemAttribute, copyAttributeLinks } from "@/lib/attributes/repository";
 import { getTaxCategories } from "@/lib/taxes/repository";
 import { generateBarcodesPdf } from "@/lib/barcode";
 import { z } from "zod";
@@ -111,10 +111,19 @@ export async function saveItemAction(formData: FormData) {
   });
 
   if (data.attributeValues) {
+    const definitions = await listDefinitions();
+    const typeById = new Map(
+      definitions.map((definition) => [definition.definitionId, definition.definitionType]),
+    );
     for (const [definitionIdStr, value] of Object.entries(data.attributeValues)) {
       const definitionId = parseInt(definitionIdStr, 10);
       if (!definitionId) continue;
-      await saveAttributeValue({ definitionId, itemId, attributeValue: value });
+      await saveTypedItemAttribute({
+        definitionId,
+        itemId,
+        definitionType: typeById.get(definitionId) ?? "TEXT",
+        value,
+      });
     }
   }
 
@@ -250,8 +259,17 @@ export async function getAttributesAction(itemId: number) {
 export async function saveAttributesAction(itemId: number, values: Record<number, string>) {
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
+  const definitions = await listDefinitions();
+  const typeById = new Map(
+    definitions.map((definition) => [definition.definitionId, definition.definitionType]),
+  );
   for (const [definitionId, value] of Object.entries(values)) {
-    await saveAttributeValue({ definitionId: parseInt(definitionId, 10), itemId, attributeValue: value });
+    await saveTypedItemAttribute({
+      definitionId: parseInt(definitionId, 10),
+      itemId,
+      definitionType: typeById.get(parseInt(definitionId, 10)) ?? "TEXT",
+      value,
+    });
   }
   revalidatePath(`/items/${itemId}`);
 }

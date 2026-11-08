@@ -5,20 +5,20 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 
 | Phase | Branch | Status | Gate evidence | Notes |
 |---|---|---|---|---|
-| P0 Baseline & guardrails | `port/p0-baseline` | DONE | typecheck/lint/build/unit green; parity scripts run | baseline doc, harness skeleton, CI, progress log |
-| P1 Data foundation | `port/p1-data` | DONE | SQLite & MySQL schema parity PASS (39 tables / 286 cols); seed+config parity PASS both dialects; import/export round-trip 39 tables verified | 39-table dual-dialect schema, exact seeds, datetime lib |
+| P0 Baseline & guardrails | `port/p0-baseline` | DONE | typecheck/lint/build/unit green; Oracle image builds and OSPOS 3.4.3 boots on :8088 | baseline doc, harness, CI, progress log |
+| P1 Data foundation | `port/p1-data` | DONE | schema/seed/config parity PASS on SQLite, MySQL and the PHP oracle; import/export round-trip 39 tables verified | 39-table dual-dialect schema, exact seeds, datetime lib |
 | P2 Core runtime | `port/p2-core` | DONE | money/datetime/RBAC/token/barcode/encryption unit tests green | CI4-compatible cipher verified against PHP |
 | P3 Master data | `port/p3-master` | PARTIAL | tax fixtures 18/18; RBAC 7/7 | tax engine, tax/attribute/people repositories ported |
 | P4 Items & inventory | `port/p4-items` | PARTIAL | item cost-average tests 3/3 | search/save/delete/CSV/cost/inventory; search filters partial |
 | P5 Sales | `port/p5-sales` | PARTIAL | sale calculator/payment tests 17/17 | cart/save/returns/suspend/edit/actions/UI; O15/O16 refinement pending |
 | P6 Receivings | `port/p6-receivings` | PARTIAL | lib/model/UI ported | cost-before-quantity, requisition bug replicated |
 | P7 Ancillary | `port/p7-ancillary` | PARTIAL | repositories ported | SMS restored to upstream config-presence stub |
-| P8 Reports | `port/p8-reports` | NOT STARTED | — | registry still SQLite-only subset |
-| P9 Config & shell | `port/p9-config` | PARTIAL | existing tabs compile | 138-key tab spec/UI pending |
-| P10 Documents | `port/p10-documents` | PARTIAL | PDF routes compile | data builder still pre-parity (see follow-ups) |
-| P11 i18n | `port/p11-i18n` | PARTIAL | 46 locales × 24 files; 72,680 keys parity PASS | bn additive pack pending |
+| P8 Reports | `port/p8-reports` | PARTIAL | every report key executes on SQLite and MySQL; exact row/summary diffs not yet run | 20 upstream reports + graphical twins, filters, summary blocks |
+| P9 Config & shell | `port/p9-config` | PARTIAL | 138-key tab UI, label resolution, secret masking, batch saves | child managers/visibility/side-effect refinement pending |
+| P10 Documents | `port/p10-documents` | PARTIAL | line names/discounts/taxes/subtotal and net payments in the data model | template flag matrix and email HTML parity pending |
+| P11 i18n | `port/p11-i18n` | PARTIAL | 46 locales × 24 files; 72,680 keys parity PASS; shell labels localized | bn pack and hard-coded UI string sweep pending |
 | P12 Hardening | `port/p12-hardening` | PARTIAL | no-stubs + sql-safety PASS | host/CSRF/throttle audits pending |
-| P13 Differential closure | `port/p13-differential` | NOT STARTED | — | harness skeleton only |
+| P13 Differential closure | `port/p13-differential` | PARTIAL | Oracle DB differential: config 138 keys PASS, seed (18/36/35/5/2/1) PASS, schema 39 tables/286 cols PASS | scenario matrix and row/output diffs pending |
 
 ## Decisions log
 
@@ -34,6 +34,10 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 | 2026-11-08 | `deleteOrphanedValues()` deletes values referenced by no link | Upstream implementation; the first pass deleted DROPDOWN option rows instead |
 | 2026-11-08 | SMS is the upstream configuration-presence stub | `Sms_lib::sendSMS` performs no network call; real gateway is DEV-03 |
 | 2026-11-08 | `ALLOWED_HOSTNAMES` boot check is skipped during `next build` page-data collection | Build-time import is not a production boot; runtime proxy still enforces the allowlist |
+| 2026-11-08 | Seed has 35 grants, not 36: the `taxes` permission exists but upstream never grants it | Verified against a freshly migrated PHP 3.4.3 oracle; appendix §3.4 incorrectly assumed every permission is granted |
+| 2026-11-08 | MySQL comment columns are `mediumtext`, not `text` | `CONVERT TO CHARACTER SET utf8mb4` upgrades TEXT to MEDIUMTEXT; verified with the oracle's `SHOW CREATE TABLE` |
+| 2026-11-08 | `invoice_email_message` default is the bare token string | Oracle value confirms the appendix catalog's trailing annotation was not part of the value |
+| 2026-11-08 | E2E logs in per test instead of reusing a stored cookie | OSPOS carts are session-scoped; reusing a JWT shared one cart across tests |
 
 ## Open follow-ups
 

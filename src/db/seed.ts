@@ -4,6 +4,7 @@ import { getRawMysqlPool, closeMysqlPool } from "@/lib/db/mysql";
 import { runMigrations } from "@/db/migrate";
 import {
   ADMIN_PASSWORD_HASH,
+  UNGRANTED_PERMISSION_IDS,
   APP_CONFIG_DEFAULTS,
   CUSTOMER_PACKAGE_SEEDS,
   DINNER_TABLE_SEEDS,
@@ -80,6 +81,7 @@ export async function seedDatabase(): Promise<number> {
        VALUES (?, ?, ?)`,
       [perm.permissionId, perm.moduleId, perm.locationId],
     );
+    if (UNGRANTED_PERMISSION_IDS.has(perm.permissionId)) continue;
     await run(
       `${IGNORE} INTO ospos_grants (permission_id, person_id, menu_group)
        VALUES (?, 1, ?)`,
@@ -110,7 +112,7 @@ export async function seedDatabase(): Promise<number> {
     );
   }
 
-  console.log("Seed complete: 138 config keys, 18 modules, 36 permissions, 36 grants.");
+  console.log("Seed complete: 138 config keys, 18 modules, 36 permissions, 35 grants.");
   return 1;
 }
 

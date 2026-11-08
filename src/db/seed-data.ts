@@ -63,7 +63,7 @@ export const APP_CONFIG_DEFAULTS: Record<string, string> = {
   image_max_width: "640",
   include_hsn: "0",
   invoice_default_comments: "This is a default comment",
-  invoice_email_message: "Dear {CU}, In attachment the receipt for sale {ISEQ} | initial_schema.sql (tokens rewritten by 3.0.2_to_3.1.1.sql:313-316)",
+  invoice_email_message: "Dear {CU}, In attachment the receipt for sale {ISEQ}",
   invoice_enable: "1",
   invoice_type: "invoice",
   key_amount: "53 | ALT + 5",
@@ -165,6 +165,8 @@ export const MODULE_SEEDS: ModuleSeed[] = [
   { moduleId: "suppliers", nameLangKey: "module_suppliers", descLangKey: "module_suppliers_desc", sort: 40, menuGroup: "home" },
   { moduleId: "taxes", nameLangKey: "module_taxes", descLangKey: "module_taxes_desc", sort: 105, menuGroup: "office" },
 ];
+
+export const UNGRANTED_PERMISSION_IDS = new Set<string>(["taxes"]);
 
 export interface PermissionSeed { permissionId: string; moduleId: string; locationId: number | null; menuGroup: string }
 export const PERMISSION_SEEDS: PermissionSeed[] = [

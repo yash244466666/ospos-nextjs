@@ -159,7 +159,7 @@ CREATE TABLE `ospos_inventory` (
 	`trans_items` int NOT NULL DEFAULT 0,
 	`trans_user` int NOT NULL DEFAULT 0,
 	`trans_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	`trans_comment` text NOT NULL,
+	`trans_comment` mediumtext NOT NULL,
 	`trans_location` int NOT NULL,
 	`trans_inventory` decimal(15,3) NOT NULL DEFAULT '0',
 	CONSTRAINT `ospos_inventory_trans_id` PRIMARY KEY(`trans_id`)
@@ -249,7 +249,7 @@ CREATE TABLE `ospos_people` (
 	`state` varchar(255) NOT NULL,
 	`zip` varchar(255) NOT NULL,
 	`country` varchar(255) NOT NULL,
-	`comments` text NOT NULL,
+	`comments` mediumtext NOT NULL,
 	CONSTRAINT `ospos_people_person_id` PRIMARY KEY(`person_id`)
 );
 --> statement-breakpoint
@@ -265,7 +265,7 @@ CREATE TABLE `ospos_receivings` (
 	`receiving_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`supplier_id` int,
 	`employee_id` int NOT NULL DEFAULT 0,
-	`comment` text NOT NULL,
+	`comment` mediumtext NOT NULL,
 	`payment_type` varchar(20),
 	`reference` varchar(32),
 	CONSTRAINT `ospos_receivings_receiving_id` PRIMARY KEY(`receiving_id`)
@@ -292,7 +292,7 @@ CREATE TABLE `ospos_sales` (
 	`sale_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`customer_id` int,
 	`employee_id` int NOT NULL DEFAULT 0,
-	`comment` text NOT NULL,
+	`comment` mediumtext NOT NULL,
 	`invoice_number` varchar(32),
 	`quote_number` varchar(32),
 	`sale_status` tinyint NOT NULL DEFAULT 0,
