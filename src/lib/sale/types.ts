@@ -1,46 +1,52 @@
+import {
+  bcAdd,
+  bcDiv,
+  bcMul,
+  bcSub,
+  dec,
+  phpRound,
+  toDbDecimal,
+  type DecimalInput,
+  type RoundingMode,
+} from "@/lib/money";
+import { DISCOUNT_TYPE, ROUNDING_MODE, STOCK_TYPE } from "@/lib/constants";
+import { quantityDecimals, totalsDecimals } from "@/lib/config";
+
 export interface CartLine {
   line: number;
   itemId: number;
   itemLocation: number;
-  itemName: string;
-  itemNumber: string | null;
   stockName: string;
+  name: string;
+  itemNumber: string | null;
   attributeValues: string;
   attributeDtvalues: string;
   description: string;
   serialnumber: string;
   allowAltDescription: boolean;
   isSerialized: boolean;
-  quantity: number;
-  discount: number;
+  quantity: string;
+  discount: string;
   discountType: number;
-  inStock: number;
-  price: number;
-  costPrice: number;
-  total: number;
-  discountedTotal: number;
+  inStock: string;
+  price: string;
+  costPrice: string;
+  total: string;
+  discountedTotal: string;
   printOption: number;
   stockType: number;
   itemType: number;
   hsnCode: string;
   taxCategoryId: number | null;
   taxedFlag: string;
-  promotionDiscount: number;
-  unitPriceBeforePromo: number;
-  promoQuantitySold: number;
-  printAfterPromo: boolean;
 }
 
 export interface SalePayment {
-  paymentId: string;
   paymentType: string;
-  paymentAmount: number;
-  cashRefund: number;
+  paymentAmount: string;
+  cashRefund: string;
   cashAdjustment: number;
-  employeeId: number;
-  paymentTime: number;
-  saleId?: number;
-  siblingId?: string;
+  referenceCode: string | null;
 }
 
 export interface SaleCart {
@@ -61,89 +67,212 @@ export interface SaleCart {
   printAfterSale: boolean;
   emailReceipt: boolean;
   priceWorkOrders: boolean;
-  giftcardRemainder: number;
-  rewardsRemainder: number;
+  giftcardRemainder: string;
+  rewardsRemainder: string;
   cashRounding: boolean;
   cashMode: boolean;
   allowTempItems: boolean;
   paymentType: string;
 }
 
-function round(v: number, decimals: number): number {
-  const f = Math.pow(10, decimals);
-  return Math.round(v * f) / f;
+export interface SaleTotals {
+  prediscountSubtotal: string;
+  totalDiscount: string;
+  subtotal: string;
+  total: string;
+  taxTotal: string;
+  paymentTotal: string;
+  cashTotal: string;
+  amountDue: string;
+  cashAmountDue: string;
+  paymentsCoverTotal: boolean;
+  itemCount: number;
+  totalUnits: string;
+  cashAdjustmentAmount: string;
 }
 
-export function getItemTotal(quantity: number, price: number, discount: number, discountType: number): number {
-  let t = quantity * price;
-  if (discountType === 0) t = t * (1 - discount / 100);
-  else t = t - discount;
-  return round(t, 4);
+/** `Sale_lib::get_item_discount` — rounded at totals decimals, HALF_UP. */
+export function getItemDiscount(
+  quantity: DecimalInput,
+  price: DecimalInput,
+  discount: DecimalInput,
+  discountType: number,
+): string {
+  const total = bcMul(quantity, price);
+  const amount =
+    discountType === DISCOUNT_TYPE.PERCENT
+      ? bcMul(total, bcDiv(discount, "100"))
+      : bcMul(quantity, discount);
+  return toDbDecimal(phpRound(amount, totalsDecimals(), ROUNDING_MODE.HALF_UP), totalsDecimals());
 }
 
-export function getItemTotalTaxExclusive(quantity: number, price: number, discount: number, discountType: number, taxIncluded: number, taxPercent: number): number {
-  const priceWithTax = taxIncluded ? price : price * (1 + taxPercent / 100);
-  return getItemTotal(quantity, priceWithTax, discount, discountType);
+/** `Sale_lib::get_item_total` — no rounding beyond bcmath scale. */
+export function getItemTotal(
+  quantity: DecimalInput,
+  price: DecimalInput,
+  discount: DecimalInput,
+  discountType: number,
+  includeDiscount = false,
+): string {
+  const total = bcMul(quantity, price);
+  if (!includeDiscount) return toDbDecimal(total, 4);
+  return toDbDecimal(bcSub(total, getItemDiscount(quantity, price, discount, discountType)), 4);
 }
 
-export function getExtendedAmount(quantity: number, price: number, discount: number, discountType: number): number {
-  return getItemTotal(quantity, price, discount, discountType);
+/** `Sale_lib::get_quantity_sold` — bcdiv at quantity decimals. */
+export function getQuantitySold(total: DecimalInput, price: DecimalInput): string {
+  if (dec(price).isZero()) return "0";
+  return toDbDecimal(bcDiv(total, price, quantityDecimals()), quantityDecimals());
 }
 
-export function getExtendedTotalTaxExclusive(quantity: number, price: number, discount: number, discountType: number, taxIncluded: number, taxPercent: number): number {
-  return getItemTotalTaxExclusive(quantity, price, discount, discountType, taxIncluded, taxPercent);
+/** `Sale_lib::get_extended_amount`. */
+export function getExtendedAmount(
+  quantity: DecimalInput,
+  price: DecimalInput,
+  discountAmount: DecimalInput = "0",
+): string {
+  return toDbDecimal(bcSub(bcMul(quantity, price), discountAmount), 4);
 }
 
-export function getItemDiscount(quantity: number, price: number, discount: number, discountType: number): number {
-  const full = quantity * price;
-  return round(full - getItemTotal(quantity, price, discount, discountType), 4);
-}
-
-export function getQuantitySold(cart: CartLine[]): number {
-  return cart.reduce((s, l) => s + l.quantity, 0);
-}
-
-export function getItemTax(item: CartLine, taxPercent: number, taxIncluded: boolean, roundingMode: number, taxDecimals: number): number {
-  const base = getExtendedAmount(item.quantity, item.price, item.discount, item.discountType);
+/** `Sale_lib::get_item_tax` — included taxes are extracted, excluded added. */
+export function getItemTax(
+  quantity: DecimalInput,
+  price: DecimalInput,
+  discount: DecimalInput,
+  discountType: number,
+  taxPercentage: DecimalInput,
+  taxIncluded: boolean,
+): string {
+  const total = getItemTotal(quantity, price, discount, discountType, true);
   if (taxIncluded) {
-    const exclBase = base / (1 + taxPercent / 100);
-    return round(base - exclBase, taxDecimals);
+    const fraction = bcDiv(bcAdd("100", taxPercentage), "100");
+    const exclusive = bcDiv(total, fraction);
+    return toDbDecimal(bcSub(total, exclusive), 4);
   }
-  return round(base * (taxPercent / 100), taxDecimals);
+  return toDbDecimal(bcMul(total, bcDiv(taxPercentage, "100")), 4);
 }
 
-export function getCartTotals(cart: CartLine[], taxTotal: number, taxIncluded: boolean) {
-  const prediscountSubtotal = cart.reduce((s, l) => s + l.quantity * l.price, 0);
-  const itemDiscount = cart.reduce((s, l) => {
-    if (l.discountType === 0) return s + (l.quantity * l.price * l.discount / 100);
-    return s + l.discount;
-  }, 0);
-  const subtotal = round(prediscountSubtotal - itemDiscount, 4);
-  const total = taxIncluded ? subtotal : round(subtotal + taxTotal, 4);
-  return { prediscountSubtotal, subtotal, itemDiscount, total, taxTotal };
+export interface TaxAmountLike {
+  taxType: number;
+  saleTaxAmount: string;
 }
 
-export function calculateSubtotal(cart: CartLine[], includeDiscount: boolean, excludeTax: boolean): number {
-  let total = 0;
-  for (const l of cart) {
-    let line = l.quantity * l.price;
-    if (includeDiscount) {
-      if (l.discountType === 0) line = line * (1 - l.discount / 100);
-      else line = line - l.discount;
+/** `Sale_lib::get_totals`. */
+export function calculateTotals(
+  cart: CartLine[],
+  taxes: TaxAmountLike[],
+  options: {
+    paymentTotal: string;
+    cashRounding: boolean;
+    cashMode: boolean;
+    cashRoundingCode: RoundingMode;
+    cashDecimals: number;
+    mode: string;
+  },
+): SaleTotals {
+  let prediscountSubtotal = "0";
+  let subtotal = "0";
+  let total = "0";
+  let totalDiscount = "0";
+  let itemCount = 0;
+  let totalUnits = "0";
+
+  for (const item of cart) {
+    if (item.stockType === STOCK_TYPE.HAS_STOCK) {
+      itemCount += 1;
+      totalUnits = bcAdd(totalUnits, item.quantity).toFixed();
     }
-    total += line;
+    const discountAmount = getItemDiscount(
+      item.quantity,
+      item.price,
+      item.discount,
+      item.discountType,
+    );
+    totalDiscount = bcAdd(totalDiscount, discountAmount).toFixed();
+    const extended = getExtendedAmount(item.quantity, item.price);
+    const discounted = getExtendedAmount(item.quantity, item.price, discountAmount);
+    prediscountSubtotal = bcAdd(prediscountSubtotal, extended).toFixed();
+    total = bcAdd(total, discounted).toFixed();
+    subtotal = bcAdd(subtotal, discounted).toFixed();
   }
-  return round(total, 4);
+
+  let taxTotal = "0";
+  for (const tax of taxes) {
+    if (tax.taxType === 1) {
+      total = bcAdd(total, tax.saleTaxAmount).toFixed();
+      taxTotal = bcAdd(taxTotal, tax.saleTaxAmount).toFixed();
+    } else {
+      subtotal = bcSub(subtotal, tax.saleTaxAmount).toFixed();
+    }
+  }
+
+  const cashTotal = options.cashRounding
+    ? phpRound(total, options.cashDecimals, options.cashRoundingCode).toFixed(options.cashDecimals)
+    : total;
+  const amountDue = bcSub(total, options.paymentTotal).toFixed(4);
+  const cashAmountDue = bcSub(cashTotal, options.paymentTotal).toFixed(4);
+  const currentDue = options.cashMode ? cashAmountDue : amountDue;
+  const threshold = dec(10).pow(-totalsDecimals()).div(2);
+  const paymentsCoverTotal =
+    options.mode === "return"
+      ? dec(currentDue).gt(threshold.neg())
+      : dec(currentDue).lt(threshold);
+
+  const cashAdjustmentAmount = paymentsCoverTotal
+    ? toDbDecimal(
+        phpRound(
+          bcSub(cashTotal, total),
+          totalsDecimals(),
+          ROUNDING_MODE.HALF_UP,
+        ),
+        totalsDecimals(),
+      )
+    : "0";
+
+  return {
+    prediscountSubtotal: toDbDecimal(prediscountSubtotal, 4),
+    totalDiscount: toDbDecimal(totalDiscount, totalsDecimals()),
+    subtotal: toDbDecimal(subtotal, 4),
+    total: toDbDecimal(total, totalsDecimals()),
+    taxTotal: toDbDecimal(taxTotal, totalsDecimals()),
+    paymentTotal: toDbDecimal(options.paymentTotal, 4),
+    cashTotal: toDbDecimal(cashTotal, totalsDecimals()),
+    amountDue: toDbDecimal(amountDue, totalsDecimals()),
+    cashAmountDue: toDbDecimal(cashAmountDue, totalsDecimals()),
+    paymentsCoverTotal,
+    itemCount,
+    totalUnits,
+    cashAdjustmentAmount,
+  };
 }
 
-export function getDiscount(cart: CartLine[]): number {
-  return cart.reduce((s, l) => {
-    const full = l.quantity * l.price;
-    const disc = l.discountType === 0 ? full * (l.discount / 100) : l.discount;
-    return s + disc;
-  }, 0);
+/** Compatibility helpers for callers that still use numeric APIs. */
+export function toNumber(value: DecimalInput): number {
+  return Number(dec(value).toString());
 }
 
-export function getSubtotal(cart: CartLine[]): number {
-  return calculateSubtotal(cart, true, false);
+
+/** Compatibility shim for register components; the authoritative path is `calculateTotals`. */
+export function getCartTotals(
+  cart: CartLine[],
+  taxTotal: DecimalInput = "0",
+  taxIncluded = false,
+) {
+  const totals = calculateTotals(cart, [
+    { taxType: taxIncluded ? 0 : 1, saleTaxAmount: String(taxTotal) },
+  ], {
+    paymentTotal: "0",
+    cashRounding: false,
+    cashMode: false,
+    cashRoundingCode: ROUNDING_MODE.HALF_UP,
+    cashDecimals: 2,
+    mode: "sale",
+  });
+  return {
+    prediscountSubtotal: toNumber(totals.prediscountSubtotal),
+    subtotal: toNumber(totals.subtotal),
+    itemDiscount: toNumber(totals.totalDiscount),
+    total: toNumber(totals.total),
+    taxTotal: toNumber(totals.taxTotal),
+  };
 }

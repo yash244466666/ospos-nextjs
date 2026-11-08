@@ -7,7 +7,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   await requirePermission("sales");
   const { id } = await params;
   const saleId = parseInt(id, 10);
-  const data = buildReceiptData(saleId);
+  const data = await buildReceiptData(saleId);
   if (!data) return new Response("Sale not found", { status: 404 });
   const buffer = await renderToBuffer(<TaxInvoiceDocument data={data} />);
   return new Response(new Uint8Array(buffer), {

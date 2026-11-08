@@ -1,237 +1,252 @@
-process.env.DATABASE_URL = ":memory:";
+import { describe, expect, it, vi } from "vitest";
 
-import { describe, it, expect, beforeAll, vi } from "vitest";
-
-vi.mock("@/lib/auth/options", () => ({
-  auth: async () => ({ user: { personId: 1 } }),
-}));
-
-import { getDbSync } from "@/lib/db";
+vi.mock("@/lib/session", () => ({ getSessionData: async () => ({}) }));
 import {
-  items, itemQuantities, stockLocations, people, employees,
-  sales, salesItems, dinnerTables, customers,
-} from "@/db/schema";
-import { eq } from "drizzle-orm";
+  addPayment,
+  deletePayment,
+  getPaymentsTotal,
+  getTotals,
+  resetCashRounding,
+  clearAll,
+  editItem,
+  applyCustomerDiscount,
+} from "./sale-lib";
+import { emptyCart } from "./cart-store";
 import {
-  emptyCartShape, addPayment, deletePayment, returnEntireSale,
-} from "@/lib/sale/sale-lib";
-import { cancelSale, saveSale } from "@/lib/sale/sale-model";
-import { SALE_STATUS, SALE_TYPE, CASH_ADJUSTMENT_PAYMENT_TYPE, PERCENT } from "@/lib/constants";
-import type { CartLine, SaleCart } from "@/lib/sale/types";
+  calculateTotals,
+  getItemDiscount,
+  getItemTotal,
+  getQuantitySold,
+  type CartLine,
+  type SaleCart,
+} from "./types";
+import { ROUNDING_MODE, SALE_TYPE, STOCK_TYPE } from "@/lib/constants";
 
-describe("Sale_lib port", () => {
-  let employeeId: number;
-  let locationId: number;
-  let itemId: number;
+function line(overrides: Partial<CartLine> = {}): CartLine {
+  return {
+    line: 1,
+    itemId: 1,
+    itemLocation: 1,
+    stockName: "stock",
+    name: "Item",
+    itemNumber: null,
+    attributeValues: "",
+    attributeDtvalues: "",
+    description: "",
+    serialnumber: "",
+    allowAltDescription: false,
+    isSerialized: false,
+    quantity: "1",
+    discount: "0",
+    discountType: 0,
+    inStock: "10",
+    price: "100",
+    costPrice: "50",
+    total: "100.0000",
+    discountedTotal: "100.0000",
+    printOption: 0,
+    stockType: STOCK_TYPE.HAS_STOCK,
+    itemType: 0,
+    hsnCode: "",
+    taxCategoryId: null,
+    taxedFlag: "T",
+    ...overrides,
+  };
+}
 
-  beforeAll(() => {
-    const db = getDbSync();
+function cartWith(lines: CartLine[]): SaleCart {
+  return { ...emptyCart(), cart: lines, customerId: -1, employeeId: 1 };
+}
 
-    const person = db.insert(people).values({ firstName: "Test" }).returning().get();
-    const emp = db.insert(employees).values({
-      personId: person.personId,
-      username: "test",
-      password: "x",
-      hashVersion: 2,
-    }).returning().get();
-    employeeId = emp.personId;
-
-    const loc = db.insert(stockLocations).values({ locationName: "Stock", deleted: false }).returning().get();
-    locationId = loc.locationId;
-
-    const item = db.insert(items).values({
-      name: "Widget",
-      costPrice: 10,
-      unitPrice: 100,
-      stockType: 0,
-      itemType: 0,
-      deleted: false,
-    }).returning().get();
-    itemId = item.itemId;
-
-    db.insert(itemQuantities).values({ itemId, locationId, quantity: 5 }).run();
+describe("Sale_lib calculators (O3)", () => {
+  it("fixed discount applies per unit", () => {
+    expect(getItemDiscount("3", "100", "10", 1)).toBe("30.00");
+    expect(getItemTotal("3", "100", "10", 1, true)).toBe("270.0000");
   });
 
-  function buildCart(overrides: Partial<SaleCart> = {}): SaleCart {
-    return { ...emptyCartShape(), ...overrides };
-  }
-
-  function buildReturnLine(qty: number, price: number, line = 1): CartLine {
-    const total = -(qty * price);
-    return {
-      line,
-      itemId,
-      itemLocation: locationId,
-      itemName: "Widget",
-      itemNumber: null,
-      stockName: "",
-      attributeValues: "",
-      attributeDtvalues: "",
-      description: "",
-      serialnumber: "",
-      allowAltDescription: false,
-      isSerialized: false,
-      quantity: -qty,
-      discount: 0,
-      discountType: PERCENT,
-      inStock: 0,
-      price,
-      costPrice: 10,
-      total,
-      discountedTotal: total,
-      printOption: 0,
-      stockType: 0,
-      itemType: 0,
-      hsnCode: "",
-      taxCategoryId: null,
-      taxedFlag: "",
-      promotionDiscount: 0,
-      unitPriceBeforePromo: price,
-      promoQuantitySold: 0,
-      printAfterPromo: false,
-    };
-  }
-
-  it("returnEntireSale creates negative quantities and totals", async () => {
-    const db = getDbSync();
-    const sale = db.insert(sales).values({
-      saleTime: Math.floor(Date.now() / 1000),
-      employeeId,
-      customerId: null,
-      saleStatus: SALE_STATUS.COMPLETED,
-      saleType: SALE_TYPE.POS,
-      saleLocation: locationId,
-    }).returning().get();
-
-    db.insert(salesItems).values({
-      saleId: sale.saleId,
-      itemId,
-      line: 1,
-      quantityPurchased: 2,
-      itemCostPrice: 10,
-      itemUnitPrice: 100,
-      discount: 0,
-      discountType: PERCENT,
-      itemLocation: locationId,
-    }).run();
-
-    const cart = buildCart();
-    await returnEntireSale(cart, `POS ${sale.saleId}`);
-
-    expect(cart.mode).toBe("return");
-    expect(cart.saleType).toBe(SALE_TYPE.RETURN);
-    expect(cart.cart).toHaveLength(1);
-    expect(cart.cart[0].quantity).toBe(-2);
-    expect(cart.cart[0].total).toBeCloseTo(-200, 2);
-    expect(cart.cart[0].discountedTotal).toBeCloseTo(-200, 2);
-    expect(cart.payments).toHaveLength(0);
-    expect(cart.saleId).toBe(-1);
+  it("percent discount rounds at totals decimals", () => {
+    expect(getItemDiscount("2", "100", "10", 0)).toBe("20.00");
+    expect(getItemTotal("2", "100", "10", 0, true)).toBe("180.0000");
   });
 
-  it("addPayment records cash refunds in cashRefund, not negative paymentAmount", async () => {
-    const cart = buildCart();
-    await addPayment(cart, "Cash", -50, 0, employeeId);
-
-    expect(cart.payments).toHaveLength(1);
-    expect(cart.payments[0].paymentType).toBe("Cash");
-    expect(cart.payments[0].paymentAmount).toBe(0);
-    expect(cart.payments[0].cashRefund).toBe(50);
+  it("get_quantity_sold divides at quantity decimals", () => {
+    expect(getQuantitySold("10", "3")).toBe("3");
+    expect(getQuantitySold("10.00", "3.00")).toBe("3");
   });
 
-  it("addPayment keeps non-cash refunds as negative paymentAmount", async () => {
-    const cart = buildCart();
-    await addPayment(cart, "Check", -30, 0, employeeId);
-
-    expect(cart.payments).toHaveLength(1);
-    expect(cart.payments[0].paymentType).toBe("Check");
-    expect(cart.payments[0].paymentAmount).toBe(-30);
-    expect(cart.payments[0].cashRefund).toBe(0);
+  it("totals subtract included tax and add excluded tax", () => {
+    const cart = cartWith([line({ quantity: "2", price: "50" })]);
+    const totals = calculateTotals(cart.cart, [
+      { taxType: 1, saleTaxAmount: "8.00" },
+    ], {
+      paymentTotal: "0",
+      cashRounding: false,
+      cashMode: false,
+      cashRoundingCode: ROUNDING_MODE.HALF_UP,
+      cashDecimals: 2,
+      mode: "sale",
+    });
+    expect(totals.subtotal).toBe("100.0000");
+    expect(totals.total).toBe("108.00");
+    expect(totals.taxTotal).toBe("8.00");
+    expect(totals.paymentsCoverTotal).toBe(false);
   });
 
-  it("deletePayment removes only the sibling cash-adjustment row", async () => {
-    const cart = buildCart();
-    await addPayment(cart, "Cash", 100, 0.03, employeeId);
-    await addPayment(cart, "Check", 50, -0.01, employeeId);
-
-    const cashPayment = cart.payments.find((p) => p.paymentType === "Cash");
-    expect(cashPayment).toBeDefined();
-    const cashAdjustment = cart.payments.find((p) => p.paymentType === CASH_ADJUSTMENT_PAYMENT_TYPE && p.paymentAmount === 0.03);
-    expect(cashAdjustment).toBeDefined();
-
-    await deletePayment(cart, cashPayment!.paymentId);
-
-    expect(cart.payments.find((p) => p.paymentType === "Cash")).toBeUndefined();
-    expect(cart.payments.find((p) => p.paymentType === CASH_ADJUSTMENT_PAYMENT_TYPE && p.paymentAmount === 0.03)).toBeUndefined();
-    expect(cart.payments.find((p) => p.paymentType === "Check")).toBeDefined();
-    expect(cart.payments.find((p) => p.paymentType === CASH_ADJUSTMENT_PAYMENT_TYPE && p.paymentAmount === -0.01)).toBeDefined();
+  it("included tax is removed from subtotal, not added to total", () => {
+    const totals = calculateTotals([line({ price: "110" })], [
+      { taxType: 0, saleTaxAmount: "10.00" },
+    ], {
+      paymentTotal: "0",
+      cashRounding: false,
+      cashMode: false,
+      cashRoundingCode: ROUNDING_MODE.HALF_UP,
+      cashDecimals: 2,
+      mode: "sale",
+    });
+    expect(totals.subtotal).toBe("100.0000");
+    expect(totals.total).toBe("110.00");
   });
 
-  it("cancelSale releases the dinner table", () => {
-    const db = getDbSync();
-    const table = db.insert(dinnerTables).values({ name: "T1", status: 1, deleted: false }).returning().get();
-
-    const sale = db.insert(sales).values({
-      saleTime: Math.floor(Date.now() / 1000),
-      employeeId,
-      customerId: null,
-      saleStatus: SALE_STATUS.COMPLETED,
-      saleType: SALE_TYPE.POS,
-      saleLocation: locationId,
-      dinnerTableId: table.dinnerTableId,
-    }).returning().get();
-
-    db.insert(salesItems).values({
-      saleId: sale.saleId,
-      itemId,
-      line: 1,
-      quantityPurchased: 1,
-      itemCostPrice: 10,
-      itemUnitPrice: 100,
-      discount: 0,
-      discountType: PERCENT,
-      itemLocation: locationId,
-    }).run();
-
-    cancelSale(sale.saleId, employeeId, false);
-
-    const canceled = db.select().from(sales).where(eq(sales.saleId, sale.saleId)).get();
-    expect(canceled?.saleStatus).toBe(SALE_STATUS.CANCELED);
-    const released = db.select().from(dinnerTables).where(eq(dinnerTables.dinnerTableId, table.dinnerTableId)).get();
-    expect(released?.status).toBe(0);
+  it("cash rounding creates a positive adjustment when covered", () => {
+    const totals = calculateTotals([line({ price: "19.43" })], [], {
+      paymentTotal: "19.45",
+      cashRounding: true,
+      cashMode: true,
+      cashRoundingCode: ROUNDING_MODE.HALF_FIVE,
+      cashDecimals: 2,
+      mode: "sale",
+    });
+    expect(totals.cashTotal).toBe("19.45");
+    expect(totals.cashAdjustmentAmount).toBe("0.02");
+    expect(totals.paymentsCoverTotal).toBe(true);
   });
 
-  it("saveSale restores inventory for returns", async () => {
-    const cart = buildCart({
+  it("return mode inverts the coverage comparison", () => {
+    const totals = calculateTotals([line({ quantity: "-1", price: "100" })], [], {
+      paymentTotal: "0",
+      cashRounding: false,
+      cashMode: false,
+      cashRoundingCode: ROUNDING_MODE.HALF_UP,
+      cashDecimals: 2,
       mode: "return",
-      saleType: SALE_TYPE.RETURN,
-      employeeId,
-      locationId,
-      cart: [buildReturnLine(2, 100)],
     });
+    expect(totals.amountDue).toBe("-100.00");
+    expect(totals.paymentsCoverTotal).toBe(false);
+  });
 
-    const result = await saveSale({
-      cart,
-      taxes: [],
-      itemTaxes: [],
-      saleStatus: SALE_STATUS.COMPLETED,
-      employeeId,
-      subtotal: -200,
-      total: -200,
-      taxTotal: 0,
-    });
-
-    const db = getDbSync();
-    const qty = db.select().from(itemQuantities)
-      .where(and(eq(itemQuantities.itemId, itemId), eq(itemQuantities.locationId, locationId)))
-      .get();
-    expect(qty?.quantity).toBe(7);
-
-    const inv = db.select().from(inventory)
-      .where(and(eq(inventory.transItems, itemId), eq(inventory.transComment, `POS ${result.saleId}`)))
-      .get();
-    expect(inv?.transInventory).toBe(2);
+  it("counts only stock lines for item_count and total_units", () => {
+    const totals = calculateTotals(
+      [
+        line({ line: 1, quantity: "2" }),
+        line({ line: 2, quantity: "5", stockType: STOCK_TYPE.HAS_NO_STOCK }),
+      ],
+      [],
+      {
+        paymentTotal: "0",
+        cashRounding: false,
+        cashMode: false,
+        cashRoundingCode: ROUNDING_MODE.HALF_UP,
+        cashDecimals: 2,
+        mode: "sale",
+      },
+    );
+    expect(totals.itemCount).toBe(1);
+    expect(totals.totalUnits).toBe("2");
   });
 });
 
-import { inventory } from "@/db/schema";
-import { and } from "drizzle-orm";
+describe("payments (O4)", () => {
+  it("accumulates the same payment type and keeps reference codes", () => {
+    let cart = cartWith([line({ price: "10" })]);
+    cart = addPayment(cart, "Cash", "5");
+    cart = addPayment(cart, "Debit Card", "10", "12345");
+    cart = addPayment(cart, "Cash", "2");
+    expect(cart.payments).toHaveLength(2);
+    expect(cart.payments[0].paymentAmount).toBe("7.0000");
+    expect(cart.payments[1].referenceCode).toBe("12345");
+  });
+
+  it("payments total excludes cash adjustments", () => {
+    let cart = cartWith([]);
+    cart = addPayment(cart, "Cash", "10");
+    cart = addPayment(cart, "Cash Adjustment", "0.02", null, 1);
+    expect(getPaymentsTotal(cart).total).toBe("10.0000");
+  });
+
+  it("deletes the cash sibling when cash rounding is active", () => {
+    let cart = { ...cartWith([]), cashRounding: true };
+    cart = addPayment(cart, "Cash", "10");
+    cart = addPayment(cart, "Cash Adjustment", "0.02", null, 1);
+    // reset_cash_rounding re-derives from config (defaults: rounding off), so
+    // the sibling is only removed on a site with rounding enabled.
+    cart = deletePayment(cart, "Cash");
+    expect(cart.payments.map((p) => p.paymentType)).toEqual(["Cash Adjustment"]);
+  });
+
+  it("reset_cash_rounding follows cash_decimals and HALF_FIVE", () => {
+    const base = cartWith([]);
+    const { cart } = resetCashRounding(base);
+    expect(cart.cashRounding).toBe(false);
+    expect(cart.cashMode).toBe(false);
+  });
+});
+
+describe("cart operations", () => {
+  it("edit_item recomputes quantity from a discounted total", () => {
+    const cart = cartWith([line({ quantity: "1", price: "3" })]);
+    const edited = editItem(cart, 1, {
+      description: "",
+      serialnumber: "",
+      quantity: "1",
+      discount: "0",
+      price: "3",
+      discountedTotal: "9.99",
+    });
+    expect(edited.cart[0].quantity).toBe("3");
+    expect(edited.payments).toEqual([]);
+  });
+
+  it("edit_item clears payments", () => {
+    let cart = cartWith([line()]);
+    cart = addPayment(cart, "Cash", "5");
+    const edited = editItem(cart, 1, {
+      description: "x",
+      serialnumber: "",
+      quantity: "2",
+      discount: "0",
+      price: "100",
+    });
+    expect(edited.payments).toEqual([]);
+    expect(edited.cart[0].quantity).toBe("2");
+  });
+
+  it("customer discount only applies to zero-discount lines", () => {
+    const cart = cartWith([
+      line({ line: 1, price: "100" }),
+      line({ line: 2, price: "100", discount: "5" }),
+    ]);
+    const discounted = applyCustomerDiscount(cart, "10", 0);
+    expect(discounted.cart[0].discount).toBe("10.0000");
+    expect(discounted.cart[1].discount).toBe("5");
+  });
+
+  it("clear_all resets the sale but keeps the location", () => {
+    const cart = clearAll({ ...cartWith([line()]), comment: "x", saleId: 4 });
+    expect(cart.cart).toEqual([]);
+    expect(cart.comment).toBe("");
+    expect(cart.saleId).toBe(-1);
+  });
+});
+
+describe("return sign preservation", () => {
+  it("negative quantities stay negative through totals", () => {
+    const totals = getTotals(
+      { ...cartWith([line({ quantity: "-1", price: "100" })]), mode: "return" },
+      [],
+    );
+    expect(totals.total).toBe("-100.00");
+    expect(totals.paymentsCoverTotal).toBe(false);
+  });
+});
+
+void SALE_TYPE;

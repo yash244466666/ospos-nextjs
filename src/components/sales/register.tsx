@@ -1,25 +1,51 @@
 "use client";
 
-import { useEffect, useState, useTransition, useCallback } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type { SaleCart } from "@/lib/sale/types";
-import type { SaleTaxGroup, ItemTax } from "@/lib/tax";
+import type { SaleTaxGroup, ItemTaxDetail } from "@/lib/tax";
 import type { ItemRow } from "@/lib/items/repository";
+import type { SaleTotals } from "@/lib/sale/types";
 import {
-  addItemAction, suggestItemsAction, editItemAction, deleteItemAction, selectCustomerAction,
-  removeCustomerAction, changeModeAction, addPaymentAction, deletePaymentAction,
-  setCommentAction, setInvoiceNumberAction, completeSaleAction, suspendAction,
-  setLocationAction, setDinnerTableAction, setEmailReceiptAction, getGiftcardAction,
+  addItemAction,
+  suggestItemsAction,
+  editItemAction,
+  deleteItemAction,
+  selectCustomerAction,
+  removeCustomerAction,
+  changeModeAction,
+  addPaymentAction,
+  deletePaymentAction,
+  setCommentAction,
+  setInvoiceNumberAction,
+  setQuoteNumberAction,
+  setWorkOrderNumberAction,
+  completeSaleAction,
+  suspendAction,
+  setLocationAction,
+  setDinnerTableAction,
+  setEmailReceiptAction,
+  getGiftcardAction,
   showKeyboardShortcutsAction,
 } from "@/app/(secure)/sales/actions";
-import { Search, Plus, Trash2, CreditCard, User, MapPin, MessageSquare, HelpCircle, Calculator, Receipt, ShoppingCart, Pause, Check, Briefcase, RotateCcw } from "lucide-react";
+import {
+  Search, Plus, Trash2, CreditCard, User, MapPin, MessageSquare,
+  HelpCircle, Receipt, ShoppingCart, Pause, Check, Briefcase, RotateCcw,
+} from "lucide-react";
+
+interface CustomerOption {
+  customerId: number;
+  label: string;
+  balance: number;
+}
 
 interface Props {
   initialCart: SaleCart;
   taxes: SaleTaxGroup[];
-  itemTaxes: ItemTax[];
-  totals: ReturnType<typeof import("@/lib/sale/types").getCartTotals>;
+  itemTaxes: ItemTaxDetail[];
+  totals: SaleTotals;
   locations: { locationId: number; locationName: string }[];
-  customers: { customerId: number; label: string; balance: number }[];
+  customers: CustomerOption[];
   dinnerTables: { id: number; name: string; status: string }[];
   paymentOptions: string[];
   giftcards: { id: number; number: string; value: number }[];
@@ -31,7 +57,11 @@ interface Props {
   priceWorkOrders: boolean;
 }
 
-const MODE_CONFIG: { key: Props["initialCart"]["mode"]; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const MODE_CONFIG: {
+  key: SaleCart["mode"];
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
   { key: "sale", label: "POS Sale", icon: ShoppingCart },
   { key: "sale_invoice", label: "Invoice", icon: Receipt },
   { key: "sale_quote", label: "Quote", icon: Briefcase },
@@ -39,53 +69,54 @@ const MODE_CONFIG: { key: Props["initialCart"]["mode"]; label: string; icon: Rea
   { key: "return", label: "Return", icon: RotateCcw },
 ];
 
+function money(symbol: string, value: string | number | null | undefined): string {
+  const numeric = Number(value ?? 0);
+  return `${symbol}${Number.isFinite(numeric) ? numeric.toFixed(2) : "0.00"}`;
+}
+
 export default function Register(props: Props) {
+  const router = useRouter();
   const [itemInput, setItemInput] = useState("");
   const [suggestions, setSuggestions] = useState<ItemRow[]>([]);
-  const [qty, setQty] = useState(1);
-  const [paymentType, setPaymentType] = useState("cash");
+  const [quantity, setQuantity] = useState("1");
+  const [paymentType, setPaymentType] = useState(props.paymentOptions[0] ?? "Cash");
   const [tendered, setTendered] = useState("");
-  const [mode, setMode] = useState<Props["initialCart"]["mode"]>(props.initialCart.mode);
-  const [pending, start] = useTransition();
+  const [referenceCode, setReferenceCode] = useState("");
+  const [mode, setMode] = useState<SaleCart["mode"]>(props.initialCart.mode);
+  const [pending, startTransition] = useTransition();
   const [customerSearch, setCustomerSearch] = useState("");
-  const [customerResults, setCustomerResults] = useState<Props["customers"]>([]);
+  const customerResults =
+    customerSearch.trim().length < 2
+      ? props.customers
+      : props.customers.filter((c) =>
+          c.label.toLowerCase().includes(customerSearch.toLowerCase()),
+        );
   const [helpOpen, setHelpOpen] = useState(false);
-
-  const refresh = useCallback(() => {
-    start(async () => {
-      // server-driven revalidation placeholder
+  const [message, setMessage] = useState<{ error?: string | null; warning?: string | null }>({});
+  const run = (task: () => Promise<void>) => {
+    startTransition(() => {
+      void task();
     });
-  }, [start]);
+  };
 
   useEffect(() => {
     const term = itemInput.trim();
     if (term.length < 2) {
-      setSuggestions([]);
       return;
     }
     const timeout = window.setTimeout(() => {
-      start(async () => {
-        const items = await suggestItemsAction(term);
-        setSuggestions(items);
+      run(async () => {
+        setSuggestions(await suggestItemsAction(term));
       });
     }, 200);
     return () => window.clearTimeout(timeout);
   }, [itemInput]);
 
   useEffect(() => {
-    if (customerSearch.trim().length < 2) {
-      setCustomerResults(props.customers);
-      return;
-    }
-    const t = customerSearch.toLowerCase();
-    setCustomerResults(props.customers.filter((c) => c.label.toLowerCase().includes(t)));
-  }, [customerSearch, props.customers]);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key === "h") {
-        e.preventDefault();
-        setHelpOpen((v) => !v);
+    function onKey(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "h") {
+        event.preventDefault();
+        setHelpOpen((value) => !value);
       }
     }
     window.addEventListener("keydown", onKey);
@@ -93,143 +124,218 @@ export default function Register(props: Props) {
   }, []);
 
   const cart = props.initialCart;
-  const total = props.totals.total;
-  const paid = cart.payments.filter((p) => p.paymentType !== "cash_adjustment").reduce((s, p) => s + p.paymentAmount, 0);
-  const due = Math.max(0, total - paid);
-  const change = paid > total ? paid - total : 0;
+  const totalValue = props.totals.total;
+  const paidValue = cart.payments
+    .filter((payment) => !payment.cashAdjustment)
+    .reduce((sum, payment) => sum + Number(payment.paymentAmount), 0);
+  const dueValue = Math.max(0, Number(totalValue) - paidValue);
+  const changeValue = paidValue > Number(totalValue) ? paidValue - Number(totalValue) : 0;
 
-  const onAdd = (raw: string, q: number) => {
-    start(async () => {
-      await addItemAction(raw, q);
+  function refresh(result?: { error?: string | null; warning?: string | null }) {
+    setMessage(result ?? {});
+    router.refresh();
+  }
+
+  function onAdd(raw: string, qty: string) {
+    run(async () => {
+      const result = await addItemAction(raw, qty);
       setItemInput("");
       setSuggestions([]);
+      refresh(result);
     });
-  };
+  }
+
+  function onAddPayment() {
+    const amount = tendered || dueValue.toFixed(2);
+    run(async () => {
+      if (paymentType === props.paymentOptions.find((p) => p.toLowerCase().includes("gift"))) {
+        const number = window.prompt("Enter gift card number:");
+        if (number) {
+          const card = await getGiftcardAction(number);
+          if (card) refresh(await addPaymentAction(paymentType, number, referenceCode || null));
+        }
+        setTendered("");
+        return;
+      }
+      refresh(await addPaymentAction(paymentType, amount, referenceCode || null));
+      setTendered("");
+      setReferenceCode("");
+    });
+  }
+
+  const referenceRequired = /debit|credit/i.test(paymentType);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="flex-1 min-w-0 space-y-5">
+    <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="min-w-0 flex-1 space-y-5">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-semibold text-slate-900">Point of Sale</h1>
           <div className="flex-1" />
           <button
             onClick={() => setHelpOpen(true)}
-            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+            className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
             aria-label="Keyboard shortcuts"
             title="Ctrl+H"
           >
-            <HelpCircle className="w-5 h-5" />
+            <HelpCircle className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        {message.error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+            {message.error}
+          </div>
+        ) : null}
+        {message.warning ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+            {message.warning}
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
-              className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]"
+              className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]"
               placeholder="Scan barcode or type item name..."
               value={itemInput}
-              onChange={(e) => setItemInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && itemInput.trim()) onAdd(itemInput.trim(), qty); }}
+              onChange={(event) => setItemInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && itemInput.trim()) onAdd(itemInput.trim(), quantity);
+              }}
               data-testid="item-input"
             />
-            {suggestions.length > 0 && (
-              <div className="absolute z-20 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg max-h-72 overflow-auto">
+            {itemInput.trim().length >= 2 && suggestions.length > 0 ? (
+              <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
                 {suggestions.map((item) => (
                   <button
                     key={item.itemId}
                     type="button"
-                    className="block w-full px-4 py-3 text-left text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors"
-                    onClick={() => onAdd(String(item.itemId), qty)}
+                    className="block w-full border-b border-slate-100 px-4 py-3 text-left text-sm transition-colors last:border-0 hover:bg-slate-50"
+                    onClick={() => onAdd(String(item.itemId), quantity)}
                   >
                     <div className="font-medium text-slate-900">{item.name}</div>
                     <div className="text-xs text-slate-500">
-                      {item.itemNumber ?? "No barcode"} · {props.currencySymbol}{(item.unitPrice ?? 0).toFixed(2)} · stock {item.receivingQuantity ?? "—"}
+                      {item.itemNumber ?? "No barcode"} · {money(props.currencySymbol, item.unitPrice)} · stock {item.receivingQuantity ?? "—"}
                     </div>
                   </button>
                 ))}
               </div>
-            )}
+            ) : null}
           </div>
           <div className="flex gap-2">
             <input
               type="number"
-              min={1}
-              className="w-24 border border-slate-300 rounded-lg px-3 py-2.5 text-right bg-white"
-              value={qty}
-              onChange={(e) => setQty(Math.max(1, parseInt(e.target.value || "1", 10)))}
+              min={0}
+              step="any"
+              className="w-24 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-right"
+              value={quantity}
+              onChange={(event) => setQuantity(event.target.value)}
+              data-testid="item-quantity"
             />
             <button
-              className="bg-[var(--color-accent)] hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-colors"
+              className="flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-4 py-2.5 font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
               disabled={pending || !itemInput.trim()}
-              onClick={() => onAdd(itemInput.trim(), qty)}
+              onClick={() => onAdd(itemInput.trim(), quantity)}
               data-testid="add-item-button"
             >
-              <Plus className="w-4 h-4" /> Add
+              <Plus className="h-4 w-4" /> Add
             </button>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-sm overflow-hidden">
+        <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-white shadow-sm">
           <table className="w-full text-sm" data-testid="cart-table">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
                 <th className="p-3 text-left font-medium text-slate-700">Item</th>
                 <th className="p-3 text-right font-medium text-slate-700">Price</th>
                 <th className="p-3 text-right font-medium text-slate-700">Qty</th>
-                <th className="p-3 text-right font-medium text-slate-700">Disc %</th>
+                <th className="p-3 text-right font-medium text-slate-700">Disc</th>
                 <th className="p-3 text-right font-medium text-slate-700">Total</th>
-                <th className="p-3 w-10" />
+                <th className="w-10 p-3" />
               </tr>
             </thead>
             <tbody>
-              {cart.cart.length === 0 && (
+              {cart.cart.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-slate-500">
                     No items yet. Scan or search to add.
                   </td>
                 </tr>
-              )}
-              {cart.cart.map((l) => (
-                <tr key={l.line} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors" data-testid={`cart-row-${l.line}`}>
+              ) : null}
+              {cart.cart.map((line) => (
+                <tr
+                  key={line.line}
+                  className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50"
+                  data-testid={`cart-row-${line.line}`}
+                >
                   <td className="p-3">
-                    <div className="font-medium text-slate-900" data-testid={`cart-item-name-${l.line}`}>{l.itemName}</div>
-                    {l.description && <div className="text-xs text-slate-500">{l.description}</div>}
+                    <div className="font-medium text-slate-900" data-testid={`cart-item-name-${line.line}`}>
+                      {line.name}
+                    </div>
+                    {line.description ? (
+                      <div className="text-xs text-slate-500">{line.description}</div>
+                    ) : null}
                   </td>
                   <td className="p-3 text-right">
                     <input
                       type="number"
                       step="0.01"
-                      className="w-24 border border-slate-300 rounded px-2 py-1 text-right bg-white"
-                      value={l.price.toFixed(2)}
-                      onChange={(e) => start(() => editItemAction(l.line, { price: parseFloat(e.target.value) || 0 }))}
+                      className="w-24 rounded border border-slate-300 bg-white px-2 py-1 text-right"
+                      defaultValue={Number(line.price).toFixed(2)}
+                      onBlur={(event) =>
+                        run(async () => {
+                          refresh(await editItemAction(line.line, { price: event.target.value }));
+                        })
+                      }
                     />
                   </td>
                   <td className="p-3 text-right">
                     <input
                       type="number"
-                      className="w-20 border border-slate-300 rounded px-2 py-1 text-right bg-white"
-                      value={l.quantity}
-                      onChange={(e) => start(() => editItemAction(l.line, { quantity: parseFloat(e.target.value) || 0 }))}
+                      step="any"
+                      className="w-20 rounded border border-slate-300 bg-white px-2 py-1 text-right"
+                      defaultValue={line.quantity}
+                      onBlur={(event) =>
+                        run(async () => {
+                          refresh(await editItemAction(line.line, { quantity: event.target.value }));
+                        })
+                      }
                     />
                   </td>
                   <td className="p-3 text-right">
                     <input
                       type="number"
-                      className="w-20 border border-slate-300 rounded px-2 py-1 text-right bg-white"
-                      value={l.discount}
-                      onChange={(e) => start(() => editItemAction(l.line, { discount: parseFloat(e.target.value) || 0 }))}
+                      step="any"
+                      className="w-20 rounded border border-slate-300 bg-white px-2 py-1 text-right"
+                      defaultValue={line.discount}
+                      onBlur={(event) =>
+                        run(async () => {
+                          refresh(await editItemAction(line.line, { discount: event.target.value }));
+                        })
+                      }
                     />
                   </td>
-                  <td className="p-3 text-right font-medium text-slate-900" data-testid={`cart-row-total-${l.line}`}>{props.currencySymbol}{l.total.toFixed(2)}</td>
+                  <td
+                    className="p-3 text-right font-medium text-slate-900"
+                    data-testid={`cart-row-total-${line.line}`}
+                  >
+                    {money(props.currencySymbol, line.discountedTotal)}
+                  </td>
                   <td className="p-3">
                     <button
-                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                      onClick={() => start(() => deleteItemAction(l.line))}
+                      className="rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                      onClick={() =>
+                        run(async () => {
+                          await deleteItemAction(line.line);
+                          router.refresh();
+                        })
+                      }
                       aria-label="remove line"
-                      data-testid={`cart-row-delete-${l.line}`}
+                      data-testid={`cart-row-delete-${line.line}`}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </td>
                 </tr>
@@ -239,229 +345,309 @@ export default function Register(props: Props) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {MODE_CONFIG.map((m) => (
+          {MODE_CONFIG.map((entry) => (
             <button
-              key={m.key}
-              data-testid={`mode-${m.key}`}
-              onClick={() => { setMode(m.key); start(() => changeModeAction(m.key)); }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                mode === m.key
-                  ? "bg-[var(--color-primary)] text-white border-[var(--color-primary)]"
-                  : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+              key={entry.key}
+              data-testid={`mode-${entry.key}`}
+              onClick={() => {
+                setMode(entry.key);
+                run(async () => {
+                  await changeModeAction(entry.key);
+                  router.refresh();
+                });
+              }}
+              className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                mode === entry.key
+                  ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
+                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
               }`}
             >
-              <m.icon className="w-4 h-4" />
-              {m.label}
+              <entry.icon className="h-4 w-4" />
+              {entry.label}
             </button>
           ))}
         </div>
 
-        <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-sm p-5 max-w-sm ml-auto">
+        <div className="ml-auto max-w-sm rounded-xl border border-[var(--color-border)] bg-white p-5 shadow-sm">
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between text-slate-600" data-testid="totals-subtotal"><span>Subtotal</span><span className="font-medium text-slate-900">{props.currencySymbol}{props.totals.subtotal.toFixed(2)}</span></div>
-            <div className="flex justify-between text-slate-600" data-testid="totals-discount"><span>Discount</span><span className="font-medium text-slate-900">{props.currencySymbol}{props.totals.itemDiscount.toFixed(2)}</span></div>
-            {props.taxes.map((t) => (
-              <div key={t.taxGroup} className="flex justify-between text-slate-600" data-testid={`tax-${t.taxGroup}`}><span>Tax {t.taxGroup}</span><span className="font-medium text-slate-900">{props.currencySymbol}{t.saleTaxAmount.toFixed(2)}</span></div>
+            <div className="flex justify-between text-slate-600" data-testid="totals-subtotal">
+              <span>Subtotal</span>
+              <span className="font-medium text-slate-900">{money(props.currencySymbol, props.totals.subtotal)}</span>
+            </div>
+            <div className="flex justify-between text-slate-600" data-testid="totals-discount">
+              <span>Discount</span>
+              <span className="font-medium text-slate-900">{money(props.currencySymbol, props.totals.totalDiscount)}</span>
+            </div>
+            {props.taxes.map((tax) => (
+              <div key={tax.taxGroup} className="flex justify-between text-slate-600" data-testid={`tax-${tax.taxGroup}`}>
+                <span>{tax.name || tax.taxGroup}</span>
+                <span className="font-medium text-slate-900">{money(props.currencySymbol, tax.saleTaxAmount)}</span>
+              </div>
             ))}
-            <div className="flex justify-between text-lg font-semibold border-t border-slate-200 pt-2 text-slate-900" data-testid="totals-total">
-              <span>Total</span><span data-testid="totals-total-value">{props.currencySymbol}{total.toFixed(2)}</span>
+            <div className="flex justify-between border-t border-slate-200 pt-2 text-lg font-semibold text-slate-900" data-testid="totals-total">
+              <span>Total</span>
+              <span data-testid="totals-total-value">{money(props.currencySymbol, totalValue)}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="w-full lg:w-96 space-y-5">
-        <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-sm p-5 space-y-4">
+      <div className="w-full space-y-5 lg:w-96">
+        <div className="space-y-4 rounded-xl border border-[var(--color-border)] bg-white p-5 shadow-sm">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5"><User className="w-4 h-4" /> Customer</label>
+            <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+              <User className="h-4 w-4" /> Customer
+            </label>
             <input
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-ring)]"
               placeholder="Search customer…"
               value={customerSearch}
-              onChange={(e) => setCustomerSearch(e.target.value)}
+              onChange={(event) => setCustomerSearch(event.target.value)}
             />
             <select
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
               value={cart.customerId ?? ""}
-              onChange={(e) => { const v = e.target.value; if (v) start(() => selectCustomerAction(parseInt(v, 10))); else start(() => removeCustomerAction()); }}
+              onChange={(event) => {
+                const value = event.target.value;
+                run(async () => {
+                  if (value) await selectCustomerAction(Number(value));
+                  else await removeCustomerAction();
+                  router.refresh();
+                });
+              }}
             >
               <option value="">— Walk-in —</option>
-              {customerResults.map((c) => <option key={c.customerId} value={c.customerId}>{c.label}</option>)}
+              {customerResults.map((customer) => (
+                <option key={customer.customerId} value={customer.customerId}>
+                  {customer.label}
+                </option>
+              ))}
             </select>
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5"><MapPin className="w-4 h-4" /> Location</label>
+            <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+              <MapPin className="h-4 w-4" /> Location
+            </label>
             <select
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
               value={cart.locationId}
-              onChange={(e) => start(() => setLocationAction(parseInt(e.target.value, 10)))}
+              onChange={(event) =>
+                run(async () => {
+                  await setLocationAction(Number(event.target.value));
+                  router.refresh();
+                })
+              }
             >
-              {props.locations.map((l) => <option key={l.locationId} value={l.locationId}>{l.locationName}</option>)}
+              {props.locations.map((location) => (
+                <option key={location.locationId} value={location.locationId}>
+                  {location.locationName}
+                </option>
+              ))}
             </select>
           </div>
 
-          {props.dinnerTableEnabled && (
+          {props.dinnerTableEnabled ? (
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-slate-700">Dinner Table</label>
               <select
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 value={cart.dinnerTableId ?? ""}
-                onChange={(e) => { const v = e.target.value; if (!v) return; start(() => setDinnerTableAction(parseInt(v, 10))); }}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (!value) return;
+                  run(async () => {
+                    await setDinnerTableAction(Number(value));
+                    router.refresh();
+                  });
+                }}
               >
                 <option value="">— None —</option>
-                {props.dinnerTables.map((t) => (
-                  <option key={t.id} value={t.id} disabled={t.status === "occupied"}>{t.name} {t.status === "occupied" ? "(occupied)" : ""}</option>
+                {props.dinnerTables.map((table) => (
+                  <option key={table.id} value={table.id} disabled={table.status === "occupied"}>
+                    {table.name} {table.status === "occupied" ? "(occupied)" : ""}
+                  </option>
                 ))}
               </select>
             </div>
-          )}
+          ) : null}
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-700 flex items-center gap-1.5"><MessageSquare className="w-4 h-4" /> Comment</label>
+            <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+              <MessageSquare className="h-4 w-4" /> Comment
+            </label>
             <textarea
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
               rows={2}
-              value={cart.comment}
-              onChange={(e) => start(() => setCommentAction(e.target.value))}
+              defaultValue={cart.comment}
+              onBlur={(event) =>
+                run(async () => {
+                  await setCommentAction(event.target.value);
+                  router.refresh();
+                })
+              }
             />
           </div>
 
-          {(mode === "sale_invoice" || mode === "sale_quote" || mode === "sale_work_order") && (
+          {mode !== "sale" && mode !== "return" ? (
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-700">Number ({props.invoiceFormat})</label>
+              <label className="text-sm font-medium text-slate-700">
+                {mode === "sale_invoice" ? "Invoice #" : mode === "sale_quote" ? "Quote #" : "Work Order #"}{" "}
+                <span className="text-xs text-slate-500">({props.invoiceFormat})</span>
+              </label>
               <input
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
-                value={cart.invoiceNumber ?? cart.quoteNumber ?? cart.workOrderNumber ?? ""}
-                onChange={(e) => start(() => setInvoiceNumberAction(e.target.value))}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                defaultValue={cart.invoiceNumber || cart.quoteNumber || cart.workOrderNumber || ""}
+                onBlur={(event) =>
+                  run(async () => {
+                    if (mode === "sale_invoice") await setInvoiceNumberAction(event.target.value);
+                    else if (mode === "sale_quote") await setQuoteNumberAction(event.target.value);
+                    else await setWorkOrderNumberAction(event.target.value);
+                    router.refresh();
+                  })
+                }
                 data-testid="document-number-input"
               />
             </div>
-          )}
+          ) : null}
 
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <input
               type="checkbox"
-              checked={props.emailReceipt}
-              onChange={(e) => start(() => setEmailReceiptAction(e.target.checked))}
+              defaultChecked={props.emailReceipt}
+              onChange={(event) =>
+                run(async () => {
+                  await setEmailReceiptAction(event.target.checked);
+                })
+              }
             />
             Email receipt
           </label>
         </div>
 
-        <div className="bg-white rounded-xl border border-[var(--color-border)] shadow-sm p-5 space-y-4">
+        <div className="space-y-4 rounded-xl border border-[var(--color-border)] bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-            <CreditCard className="w-4 h-4" /> Payments
+            <CreditCard className="h-4 w-4" /> Payments
           </div>
-          {cart.payments.length > 0 && (
+          {cart.payments.length > 0 ? (
             <div className="space-y-1.5">
-              {cart.payments.map((p) => (
-                <div key={p.paymentId} className="flex justify-between text-sm">
-                  <span className="text-slate-600">{p.paymentType}</span>
-                  <span className="font-medium text-slate-900 flex items-center gap-2">
-                    {props.currencySymbol}{p.paymentAmount.toFixed(2)}
+              {cart.payments.map((payment) => (
+                <div key={payment.paymentType} className="flex justify-between text-sm">
+                  <span className="text-slate-600">{payment.paymentType}</span>
+                  <span className="flex items-center gap-2 font-medium text-slate-900">
+                    {money(props.currencySymbol, payment.paymentAmount)}
                     <button
-                      className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                      onClick={() => start(() => deletePaymentAction(p.paymentId))}
+                      className="rounded p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                      onClick={() =>
+                        run(async () => {
+                          await deletePaymentAction(payment.paymentType);
+                          router.refresh();
+                        })
+                      }
                       aria-label="remove payment"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </span>
                 </div>
               ))}
             </div>
-          )}
-          <div className="flex justify-between text-sm text-slate-600 border-t border-slate-100 pt-2" data-testid="payments-paid">
-            <span>Paid</span><span className="font-medium text-slate-900">{props.currencySymbol}{paid.toFixed(2)}</span>
+          ) : null}
+          <div className="flex justify-between border-t border-slate-100 pt-2 text-sm text-slate-600" data-testid="payments-paid">
+            <span>Paid</span>
+            <span className="font-medium text-slate-900">{money(props.currencySymbol, paidValue)}</span>
           </div>
           <div className="flex justify-between text-sm font-semibold text-slate-900" data-testid="payments-due">
-            <span>Due</span><span data-testid="payments-due-value">{props.currencySymbol}{due.toFixed(2)}</span>
+            <span>Due</span>
+            <span data-testid="payments-due-value">{money(props.currencySymbol, dueValue)}</span>
           </div>
-          {change > 0 && (
-            <div className="flex justify-between text-sm text-emerald-600 font-medium" data-testid="payments-change">
-              <span>Change</span><span data-testid="payments-change-value">{props.currencySymbol}{change.toFixed(2)}</span>
+          {changeValue > 0 ? (
+            <div className="flex justify-between text-sm font-medium text-emerald-600" data-testid="payments-change">
+              <span>Change</span>
+              <span data-testid="payments-change-value">{money(props.currencySymbol, changeValue)}</span>
             </div>
-          )}
+          ) : null}
 
           <div className="flex gap-2">
             <select
-              className="border border-slate-300 rounded-lg px-2 py-2 text-sm bg-white"
+              className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm"
               value={paymentType}
-              onChange={(e) => setPaymentType(e.target.value)}
+              onChange={(event) => setPaymentType(event.target.value)}
               data-testid="payment-type"
             >
-              {props.paymentOptions.map((p) => <option key={p} value={p}>{p}</option>)}
+              {props.paymentOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
             </select>
             <input
-              type="number"
-              className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
-              placeholder={due.toFixed(2)}
+              type="text"
+              className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              placeholder={dueValue.toFixed(2)}
               value={tendered}
-              onChange={(e) => setTendered(e.target.value)}
+              onChange={(event) => setTendered(event.target.value)}
               data-testid="payment-amount"
             />
             <button
-              className="bg-[var(--color-accent)] hover:bg-emerald-700 disabled:opacity-60 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
               disabled={pending}
               data-testid="add-payment-button"
-              onClick={() => {
-                const amt = tendered ? parseFloat(tendered) : due;
-                if (paymentType === "giftcard") {
-                  const num = window.prompt("Enter gift card number:");
-                  if (num) start(async () => {
-                    const gc = await getGiftcardAction(num);
-                    if (gc) await addPaymentAction("giftcard", Math.min(gc.value, amt));
-                  });
-                  setTendered("");
-                  return;
-                }
-                start(() => addPaymentAction(paymentType, amt));
-                setTendered("");
-              }}
+              onClick={onAddPayment}
             >
               Pay
             </button>
           </div>
-        </div>
+          {referenceRequired ? (
+            <input
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              placeholder="Reference code"
+              value={referenceCode}
+              onChange={(event) => setReferenceCode(event.target.value)}
+              data-testid="payment-reference"
+            />
+          ) : null}
 
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-lg font-medium hover:bg-slate-50 disabled:opacity-50 transition-colors"
-            disabled={pending || cart.cart.length === 0}
-            onClick={() => start(() => suspendAction())}
-            data-testid="suspend-sale-button"
-          >
-            <Pause className="w-4 h-4" /> Suspend
-          </button>
-          <button
-            className="flex items-center justify-center gap-2 px-4 py-3 bg-[var(--color-accent)] hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg font-medium transition-colors"
-            disabled={pending || cart.cart.length === 0}
-            onClick={() => start(() => completeSaleAction())}
-            data-testid="complete-sale-button"
-          >
-            <Calculator className="w-4 h-4" /> Complete
-          </button>
+          <div className="flex gap-2">
+            <button
+              className="flex-1 rounded-lg bg-[var(--color-primary)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+              disabled={pending || cart.cart.length === 0}
+              onClick={() => run(async () => { await completeSaleAction(); })}
+              data-testid="complete-sale-button"
+            >
+              Complete
+            </button>
+            <button
+              className="flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+              disabled={pending || cart.cart.length === 0}
+              onClick={() => run(async () => { await suspendAction(); })}
+              data-testid="suspend-sale-button"
+            >
+              <Pause className="h-4 w-4" /> Suspend
+            </button>
+          </div>
         </div>
       </div>
 
-      {helpOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setHelpOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold mb-4 text-slate-900 flex items-center gap-2">
-              <HelpCircle className="w-5 h-5 text-[var(--color-accent)]" /> Keyboard Shortcuts
-            </h2>
-            <table className="w-full text-sm">
-              <tbody className="divide-y divide-slate-100">
-                <tr><td className="py-2 font-medium text-slate-700">Ctrl + H</td><td className="py-2 text-slate-600">Show this help</td></tr>
-                <tr><td className="py-2 font-medium text-slate-700">Enter (item field)</td><td className="py-2 text-slate-600">Add item</td></tr>
-                <tr><td className="py-2 font-medium text-slate-700">Esc</td><td className="py-2 text-slate-600">Close dialog</td></tr>
-              </tbody>
-            </table>
-            <button className="mt-5 w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-medium transition-colors" onClick={() => setHelpOpen(false)}>Close</button>
+      {helpOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setHelpOpen(false)}>
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <h2 className="mb-3 text-lg font-semibold text-slate-900">Keyboard shortcuts</h2>
+            <ul className="space-y-1 text-sm text-slate-600">
+              <li>Enter — add the typed item</li>
+              <li>Ctrl+H — toggle this help</li>
+            </ul>
+            <button
+              className="mt-4 w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+              onClick={() => setHelpOpen(false)}
+            >
+              Close
+            </button>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
+
+void showKeyboardShortcutsAction;

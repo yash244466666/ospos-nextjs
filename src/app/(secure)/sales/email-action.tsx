@@ -51,7 +51,7 @@ function fileNameFor(kind: DocKind, saleId: number): string {
 async function sendSaleEmail(kind: DocKind, saleId: number, emailAddress: string) {
   await requirePermission("sales");
   const nodemailer = await import("nodemailer");
-  const data = buildReceiptData(saleId);
+  const data = await buildReceiptData(saleId);
   if (!data) throw new Error("Sale not found");
   const Doc = pickDoc(kind);
   const buffer = await renderToBuffer(<Doc data={data} />);
