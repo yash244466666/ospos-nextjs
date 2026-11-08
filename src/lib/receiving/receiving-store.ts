@@ -1,77 +1,137 @@
-import { eq } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
-import { cartSessions } from "@/db/schema";
-import { auth } from "@/lib/auth/options";
+import { getSessionData, updateSessionData, type SessionData } from "@/lib/session";
+import { getDb } from "@/lib/db";
+import { stockLocations } from "@/db/schema";
+import { and, asc, eq } from "drizzle-orm";
+import { getDefaultLocationId } from "@/lib/stock_locations/repository";
 
 export interface ReceivingLine {
   line: number;
   itemId: number;
   itemLocation: number;
-  itemName: string;
   itemNumber: string | null;
+  stockName: string;
+  name: string;
   description: string;
-  quantity: number;
-  discount: number;
-  discountType: number;
-  price: number;
-  costPrice: number;
-  stockType: number;
+  serialnumber: string;
+  attributeValues: string;
+  attributeDtvalues: string;
+  allowAltDescription: boolean;
   isSerialized: boolean;
-  receivingQuantity: number;
-  total: number;
+  quantity: string;
+  discount: string;
+  discountType: number;
+  inStock: string;
+  price: string;
+  receivingQuantity: string;
+  receivingQuantityChoices: Record<string, string>;
+  total: string;
+  stockType: number;
 }
 
 export interface ReceivingCart {
   cart: ReceivingLine[];
-  supplierId: number | null;
-  employeeId: number | null;
-  mode: "receive" | "return";
+  supplierId: number;
+  employeeId: number;
+  mode: "receive" | "return" | "requisition";
   comment: string;
-  invoiceNumber: string;
   reference: string;
-  locationId: number;
+  stockSource: number | null;
+  stockDestination: number | null;
   printAfterSale: boolean;
 }
 
 export function emptyReceivingCart(): ReceivingCart {
   return {
     cart: [],
-    supplierId: null,
-    employeeId: null,
+    supplierId: -1,
+    employeeId: -1,
     mode: "receive",
     comment: "",
-    invoiceNumber: "",
     reference: "",
-    locationId: 1,
+    stockSource: null,
+    stockDestination: null,
     printAfterSale: false,
   };
 }
 
-export async function getReceivingCart(): Promise<ReceivingCart> {
-  const session = await auth();
-  if (!session?.user?.personId) throw new Error("not authenticated");
-  const personId = session.user.personId;
-  const db = getDbSync();
-  const sessionId = `recv:${personId}`;
-  const row = db.select().from(cartSessions).where(eq(cartSessions.sessionId, sessionId)).get();
-  if (!row) {
-    const empty = emptyReceivingCart();
-    db.insert(cartSessions).values({ sessionId, personId, data: JSON.stringify(empty) }).run();
-    return empty;
+function asNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+export function receivingFromSession(data: SessionData): ReceivingCart {
+  return {
+    cart: Array.isArray(data.recv_cart) ? (data.recv_cart as ReceivingLine[]) : [],
+    supplierId: asNumber(data.recv_supplier, -1),
+    employeeId: asNumber(data.recv_employee, -1),
+    mode: (typeof data.recv_mode === "string" ? data.recv_mode : "receive") as ReceivingCart["mode"],
+    comment: typeof data.recv_comment === "string" ? data.recv_comment : "",
+    reference: typeof data.recv_reference === "string" ? data.recv_reference : "",
+    stockSource:
+      typeof data.recv_stock_source === "number" ? data.recv_stock_source : null,
+    stockDestination:
+      typeof data.recv_stock_destination === "number"
+        ? data.recv_stock_destination
+        : typeof data.recv_stock_destination === "string"
+          ? Number(data.recv_stock_destination)
+          : null,
+    printAfterSale:
+      data.recv_print_after_sale === true ||
+      data.recv_print_after_sale === "true" ||
+      data.recv_print_after_sale === "1" ||
+      data.recv_print_after_sale === 1,
+  };
+}
+
+export function receivingToSession(cart: ReceivingCart): SessionData {
+  return {
+    recv_cart: cart.cart,
+    recv_supplier: cart.supplierId,
+    recv_employee: cart.employeeId,
+    recv_mode: cart.mode,
+    recv_comment: cart.comment,
+    recv_reference: cart.reference,
+    recv_stock_source: cart.stockSource ?? undefined,
+    recv_stock_destination: cart.stockDestination ?? undefined,
+    recv_print_after_sale: cart.printAfterSale,
+  };
+}
+
+async function defaultReceivingsLocation(personId?: number): Promise<number | null> {
+  if (personId !== undefined) {
+    const allowed = await getDefaultLocationId("receivings", personId);
+    if (allowed !== null) return allowed;
   }
-  return JSON.parse(row.data) as ReceivingCart;
+  const db = await getDb();
+  const preferred = await db
+    .select({ locationId: stockLocations.locationId })
+    .from(stockLocations)
+    .where(and(eq(stockLocations.deleted, false), eq(stockLocations.isDefault, true)))
+    .limit(1);
+  if (preferred[0]) return preferred[0].locationId;
+  const first = await db
+    .select({ locationId: stockLocations.locationId })
+    .from(stockLocations)
+    .where(eq(stockLocations.deleted, false))
+    .orderBy(asc(stockLocations.sortOrder))
+    .limit(1);
+  return first[0]?.locationId ?? null;
+}
+
+export async function getReceivingCart(): Promise<ReceivingCart> {
+  const data = await getSessionData();
+  const cart = receivingFromSession(data);
+  const personId = typeof data.person_id === "number" ? data.person_id : undefined;
+  if (cart.stockSource === null) {
+    cart.stockSource = await defaultReceivingsLocation(personId);
+  }
+  if (cart.stockDestination === null) {
+    cart.stockDestination = await defaultReceivingsLocation(personId);
+  }
+  return cart;
 }
 
 export async function saveReceivingCart(cart: ReceivingCart): Promise<void> {
-  const session = await auth();
-  if (!session?.user?.personId) throw new Error("not authenticated");
-  const personId = session.user.personId;
-  const db = getDbSync();
-  const sessionId = `recv:${personId}`;
-  db.insert(cartSessions)
-    .values({ sessionId, personId, data: JSON.stringify(cart), updatedAt: Date.now() })
-    .onConflictDoUpdate({ target: cartSessions.sessionId, set: { data: JSON.stringify(cart), updatedAt: Date.now() } })
-    .run();
+  await updateSessionData((data) => ({ ...data, ...receivingToSession(cart) }));
 }
 
 export async function clearReceivingCart(): Promise<void> {
