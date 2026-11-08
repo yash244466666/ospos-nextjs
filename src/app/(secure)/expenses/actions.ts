@@ -17,12 +17,21 @@ export async function saveExpenseAction(formData: FormData) {
   const expenseCategoryId =
     parseInt((formData.get("expenseCategoryId") as string) || "0", 10) || 0;
   if (!expenseCategoryId) throw new Error("Expense category is required");
+  const rawDate = (formData.get("date") as string) || "";
+  const date = rawDate
+    ? `${rawDate.replace("T", " ")}${rawDate.length === 16 ? ":00" : ""}`.slice(0, 19)
+    : undefined;
+  const supplierId = parseInt((formData.get("supplierId") as string) || "0", 10) || null;
   const data: typeof expenses.$inferInsert = {
+    date,
     amount: toDbDecimal(amount, 2),
     paymentType: (formData.get("paymentType") as string) || "cash",
     expenseCategoryId,
     description: (formData.get("description") as string) || "",
     employeeId: session!.user.personId as number,
+    supplierTaxCode: (formData.get("supplierTaxCode") as string) || "",
+    taxAmount: toDbDecimal((formData.get("taxAmount") as string) || "0", 2),
+    supplierId,
   };
   if (id && parseInt(id, 10) > 0) {
     await db.update(expenses).set(data).where(eq(expenses.expenseId, parseInt(id, 10)));

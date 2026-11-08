@@ -1,5 +1,6 @@
 import { requireGrant } from "@/lib/auth/with-permission";
 import { getReport, runReport } from "@/lib/reports/registry";
+import { getStockLocations } from "@/lib/items/repository";
 import ReportView from "@/components/reports/report-view";
 import { notFound } from "next/navigation";
 
@@ -35,7 +36,23 @@ export default async function ReportPage({
     hasDateRange: def.hasDateRange,
     columns: def.columns,
     chart: def.chart,
+    inputs: def.inputs,
     summary: def.summary && rows.length > 0 ? def.summary(rows) : undefined,
   };
-  return <ReportView def={serializableDef} rows={rows} initialStart={filters.start ?? ""} initialEnd={filters.end ?? ""} />;
+  const locations = def.inputs.includes("location_id") || def.inputs.includes("locationId")
+    ? await getStockLocations()
+    : [];
+  return (
+    <ReportView
+      def={serializableDef}
+      rows={rows}
+      initialStart={filters.start ?? ""}
+      initialEnd={filters.end ?? ""}
+      locations={locations.map((location) => ({
+        locationId: location.locationId,
+        locationName: location.locationName,
+      }))}
+      filters={filters}
+    />
+  );
 }

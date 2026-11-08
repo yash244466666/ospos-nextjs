@@ -10,6 +10,7 @@ interface SerializableReportDef {
   hasDateRange?: boolean;
   columns: { name: string; label: string; align?: "left" | "right" }[];
   chart?: "bar" | "hbar" | "line" | "pie";
+  inputs?: string[];
   summary?: Record<string, unknown>;
 }
 
@@ -18,6 +19,8 @@ interface Props {
   rows: Record<string, unknown>[];
   initialStart: string;
   initialEnd: string;
+  locations?: { locationId: number; locationName: string }[];
+  filters?: Record<string, string | undefined>;
 }
 
 function fmt(v: unknown): string {
@@ -50,7 +53,14 @@ function ChartFor({ def, rows }: { def: SerializableReportDef; rows: Record<stri
   return null;
 }
 
-export default function ReportView({ def, rows, initialStart, initialEnd }: Props) {
+export default function ReportView({
+  def,
+  rows,
+  initialStart,
+  initialEnd,
+  locations = [],
+  filters = {},
+}: Props) {
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-3">
@@ -58,7 +68,7 @@ export default function ReportView({ def, rows, initialStart, initialEnd }: Prop
         <Link href="/reports" className="text-sm text-blue-600">← Back</Link>
       </div>
       {def.hasDateRange && (
-        <form className="flex gap-2 mb-3 items-end" method="get" action={`/reports/${def.key}`} data-testid="report-filter-form">
+        <form className="mb-3 flex flex-wrap items-end gap-2" method="get" action={`/reports/${def.key}`} data-testid="report-filter-form">
           <div>
             <label className="block text-xs">Start</label>
             <input type="date" name="start" defaultValue={initialStart} data-testid="report-date-start" className="border px-2 py-1" />
@@ -67,12 +77,72 @@ export default function ReportView({ def, rows, initialStart, initialEnd }: Prop
             <label className="block text-xs">End</label>
             <input type="date" name="end" defaultValue={initialEnd} data-testid="report-date-end" className="border px-2 py-1" />
           </div>
+          {def.inputs?.some((input) => input === "sale_type" || input === "saleType") ? (
+            <div>
+              <label className="block text-xs">Sale type</label>
+              <select name="sale_type" defaultValue={filters.sale_type ?? "complete"} className="border px-2 py-1">
+                <option value="complete">Completed Sales and Returns</option>
+                <option value="sales">Completed Sales</option>
+                <option value="quotes">Quotes</option>
+                <option value="work_orders">Work Orders</option>
+                <option value="canceled">Canceled</option>
+                <option value="returns">Returns</option>
+              </select>
+            </div>
+          ) : null}
+          {def.inputs?.some((input) => input === "location_id" || input === "locationId") ? (
+            <div>
+              <label className="block text-xs">Location</label>
+              <select name="location_id" defaultValue={filters.location_id ?? "all"} className="border px-2 py-1">
+                <option value="all">All</option>
+                {locations.map((location) => (
+                  <option key={location.locationId} value={location.locationId}>{location.locationName}</option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          {def.inputs?.includes("item_count") ? (
+            <div>
+              <label className="block text-xs">Item count</label>
+              <select name="item_count" defaultValue={filters.item_count ?? "all"} className="border px-2 py-1">
+                <option value="all">All</option>
+                <option value="zero_and_less">Zero and less</option>
+                <option value="more_than_zero">More than zero</option>
+              </select>
+            </div>
+          ) : null}
+          {def.inputs?.includes("discount_type") ? (
+            <div>
+              <label className="block text-xs">Discount type</label>
+              <select name="discount_type" defaultValue={filters.discount_type ?? "0"} className="border px-2 py-1">
+                <option value="0">Percent</option>
+                <option value="1">Fixed</option>
+              </select>
+            </div>
+          ) : null}
+          {def.inputs?.includes("discount") ? (
+            <div>
+              <label className="block text-xs">Discount</label>
+              <input name="discount" defaultValue={filters.discount ?? "0"} className="w-20 border px-2 py-1" />
+            </div>
+          ) : null}
+          {def.inputs?.includes("receiving_type") ? (
+            <div>
+              <label className="block text-xs">Receiving type</label>
+              <select name="receiving_type" defaultValue={filters.receiving_type ?? "all"} className="border px-2 py-1">
+                <option value="all">All</option>
+                <option value="receiving">Receivings</option>
+                <option value="returns">Returns</option>
+                <option value="requisitions">Requisitions</option>
+              </select>
+            </div>
+          ) : null}
           <button type="submit"
-            className="bg-blue-600 text-white px-3 py-1 rounded text-sm"
+            className="rounded bg-blue-600 px-3 py-1 text-sm text-white"
             data-testid="report-apply-button"
           >Apply</button>
           <Link href={`/reports/${def.key}/export?start=${encodeURIComponent(initialStart)}&end=${encodeURIComponent(initialEnd)}`}
-            className="bg-gray-200 px-3 py-1 rounded text-sm"
+            className="rounded bg-gray-200 px-3 py-1 text-sm"
             data-testid="report-export-link">Export CSV</Link>
         </form>
       )}

@@ -8,10 +8,11 @@ import { getDb } from "@/lib/db";
 import { giftcards } from "@/db/schema";
 import { toDbDecimal } from "@/lib/money";
 
-function generateRandomNumber(length = 14): string {
-  let s = "";
-  for (let i = 0; i < length; i++) s += Math.floor(Math.random() * 10).toString();
-  return s;
+function randomGiftcardName(value: string): string {
+  const random = Array.from({ length: 6 }, () =>
+    Math.floor(Math.random() * 16).toString(16),
+  ).join("");
+  return `${random}-${value}`.toUpperCase();
 }
 
 export async function saveGiftcardAction(formData: FormData) {
@@ -24,9 +25,16 @@ export async function saveGiftcardAction(formData: FormData) {
 
   if (!giftcardNumber) {
     for (let i = 0; i < 10; i++) {
-      const candidate = generateRandomNumber();
-      const exists = (await db.select().from(giftcards).where(eq(giftcards.giftcardNumber, candidate)).limit(1))[0];
-      if (!exists) { giftcardNumber = candidate; break; }
+      const candidate = randomGiftcardName(giftcardNumber ?? "");
+      const exists = (await db
+        .select()
+        .from(giftcards)
+        .where(eq(giftcards.giftcardNumber, candidate))
+        .limit(1))[0];
+      if (!exists) {
+        giftcardNumber = candidate;
+        break;
+      }
     }
     if (!giftcardNumber) throw new Error("Could not generate unique giftcard number");
   } else {

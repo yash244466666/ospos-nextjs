@@ -5,13 +5,25 @@ import { saveExpenseAction } from "@/app/(secure)/expenses/actions";
 
 interface Initial {
   expenseId: number;
+  date: string | null;
   amount: string | null;
   paymentType: string | null;
   expenseCategoryId: number | null;
   description: string | null;
+  supplierTaxCode: string | null;
+  taxAmount: string | null;
+  supplierId: number | null;
 }
 
-export default function ExpenseForm({ initial, categories }: { initial: Initial | null; categories: { expenseCategoryId: number; category: string }[] }) {
+export default function ExpenseForm({
+  initial,
+  categories,
+  suppliers,
+}: {
+  initial: Initial | null;
+  categories: { expenseCategoryId: number; category: string }[];
+  suppliers: { personId: number; label: string }[];
+}) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   return (
@@ -24,6 +36,15 @@ export default function ExpenseForm({ initial, categories }: { initial: Initial 
       {error && <div className="text-red-600 text-sm" data-testid="form-error">{error}</div>}
       <input type="hidden" name="expenseId" value={initial?.expenseId ?? 0} />
       <div>
+        <label className="block text-sm">Date</label>
+        <input
+          type="datetime-local"
+          name="date"
+          defaultValue={initial?.date ? initial.date.replace(" ", "T").slice(0, 16) : ""}
+          className="border px-2 py-1 w-full"
+        />
+      </div>
+      <div>
         <label className="block text-sm">Amount</label>
         <input type="number" step="0.01" name="amount" defaultValue={String(initial?.amount ?? 0)} required className="border px-2 py-1 w-full" />
       </div>
@@ -33,6 +54,23 @@ export default function ExpenseForm({ initial, categories }: { initial: Initial 
           <option value="0">— None —</option>
           {categories.map((c) => <option key={c.expenseCategoryId} value={c.expenseCategoryId}>{c.category}</option>)}
         </select>
+      </div>
+      <div>
+        <label className="block text-sm">Supplier</label>
+        <select name="supplierId" defaultValue={String(initial?.supplierId ?? 0)} className="border px-2 py-1 w-full">
+          <option value="0">— None —</option>
+          {suppliers.map((supplier) => (
+            <option key={supplier.personId} value={supplier.personId}>{supplier.label}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm">Supplier Tax Code</label>
+        <input name="supplierTaxCode" defaultValue={initial?.supplierTaxCode ?? ""} className="border px-2 py-1 w-full" />
+      </div>
+      <div>
+        <label className="block text-sm">Tax Amount</label>
+        <input type="number" step="0.01" name="taxAmount" defaultValue={initial?.taxAmount ?? "0"} className="border px-2 py-1 w-full" />
       </div>
       <div>
         <label className="block text-sm">Payment Type</label>

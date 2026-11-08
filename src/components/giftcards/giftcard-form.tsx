@@ -5,7 +5,7 @@ import { saveGiftcardAction } from "@/app/(secure)/giftcards/actions";
 
 interface Initial { giftcardId: number; giftcardNumber: string | null; value: string | null; personId: number | null; }
 
-export default function GiftcardForm({ initial, customers }: { initial: Initial | null; customers: { personId: number; label: string }[] }) {
+export default function GiftcardForm({ initial, customers, suggestedNumber = "" }: { initial: Initial | null; customers: { personId: number; label: string }[]; suggestedNumber?: string }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   return (
@@ -18,7 +18,7 @@ export default function GiftcardForm({ initial, customers }: { initial: Initial 
       <input type="hidden" name="giftcardId" value={initial?.giftcardId ?? 0} />
       <div>
         <label className="block text-sm">Number (blank = auto-generate)</label>
-        <input name="giftcardNumber" defaultValue={initial?.giftcardNumber ?? ""} className="border px-2 py-1 w-full font-mono" />
+        <input name="giftcardNumber" defaultValue={initial?.giftcardNumber ?? suggestedNumber} className="border px-2 py-1 w-full font-mono" />
       </div>
       <div>
         <label className="block text-sm">Value</label>
