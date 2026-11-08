@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { insertReturning } from "@/lib/db/insert";
 import { auth } from "@/lib/auth/options";
+import { csrfRejection, isSameOrigin } from "@/lib/auth/csrf";
 import { requirePermissionApi } from "@/lib/auth/with-permission";
 import { getDb } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
@@ -45,6 +46,7 @@ interface DefinitionInfo {
 }
 
 export async function POST(req: Request) {
+  if (!isSameOrigin(req)) return csrfRejection();
   const permission = await requirePermissionApi("items");
   if (!permission.ok) {
     return Response.json(permission.body, { status: permission.status });

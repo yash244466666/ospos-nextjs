@@ -17,7 +17,7 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 | P9 Config & shell | `port/p9-config` | PARTIAL | 138-key tab UI, label resolution, secret masking, batch saves | child managers/visibility/side-effect refinement pending |
 | P10 Documents | `port/p10-documents` | PARTIAL | receipt data builder is decimal-only and carries employee/invoice/line/tax/payment fields plus the `receipt_*` flag matrix; HTML receipt honors company/description/serial/tax-ind/total-discount flags with localized labels; 4 fixture tests | `receipt_short`/invoice template variants and email HTML parity pending |
 | P11 i18n | `port/p11-i18n` | PARTIAL | 46 locales × 24 files; 72,680 keys parity PASS; shell labels localized | bn pack and hard-coded UI string sweep pending |
-| P12 Hardening | `port/p12-hardening` | PARTIAL | no-stubs + sql-safety PASS; throttle rewritten to the upstream filter contract (11 unit tests); `/api/migrate` now re-checks credentials on an existing DB and takes a migration lock | CSRF/session audit pending |
+| P12 Hardening | `port/p12-hardening` | PARTIAL | no-stubs + sql-safety PASS; throttle rewritten to the upstream filter contract (11 unit tests); `/api/migrate` re-checks credentials, throttles and locks; mutating route handlers validate Origin/Referer (6 unit tests); login localized | session-lifecycle audit pending |
 | P13 Differential closure | `port/p13-differential` | PARTIAL | Oracle DB differential: config 138 keys PASS, seed (18/36/35/5/2/1) PASS, schema 39 tables/286 cols PASS; MySQL integration suite 29/29 on config/sequence, sale, items, receiving, reports, all ancillary repositories | scenario matrix and row/output diffs pending |
 
 ## Gate evidence — 2026-11-08 session
