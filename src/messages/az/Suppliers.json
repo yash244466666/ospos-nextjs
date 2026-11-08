@@ -1,0 +1,23 @@
+{
+  "account_number": "Hesab №",
+  "agency_name": "Agentliyin adı",
+  "cannot_be_deleted": "Seçilmiş təchizatçı(lar) silinə bilmədi. Bir və ya bir neçəsinin satışı var.",
+  "category": "Kateqoriya",
+  "company_name": "Şirkətin adı",
+  "company_name_required": "Şirkətin adı - doldurulması vacib sahə.",
+  "confirm_delete": "Seçilmiş təchizatçı(lar)ı silmək istədiyinizə əminsiniz?",
+  "confirm_restore": "Seçilmiş təchizatçı(lar)ı bərpa etmək istədiyinizə əminsiniz?",
+  "cost": "Maya dəyəri təchizatçısı",
+  "error_adding_updating": "Təchizatçının əlavə edilməsi və ya yenilənməsi uğursuz oldu.",
+  "goods": "Mal təchizatçısı",
+  "new": "Yeni təchizatçı",
+  "none_selected": "Silmək üçün təchizatçı seçməmisiniz.",
+  "one_or_multiple": "Təchizatçı(lar)",
+  "successful_adding": "Təchizatçını uğurla əlavə etdiniz",
+  "successful_deleted": "Uğurla sildiniz",
+  "successful_updating": "Təchizatçını uğurla yenilədiniz",
+  "supplier": "Təchizatçı",
+  "supplier_id": "Kimlik",
+  "tax_id": "Vergi kodu",
+  "update": "Təchizatçını yenilə"
+}
