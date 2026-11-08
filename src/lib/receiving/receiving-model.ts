@@ -1,4 +1,5 @@
 import { and, asc, eq, sql } from "drizzle-orm";
+import { insertReturning } from "@/lib/db/insert";
 import { getDb, IS_SQLITE, type Db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { affectedRows } from "@/lib/db/execute";
@@ -105,7 +106,7 @@ async function copyReceivingAttributeLinks(
       )
       .limit(1);
     if (exists.length === 0) {
-      await tx.insert(attributeLinks).values({
+      await insertReturning(tx, attributeLinks, {
         attributeId: link.attributeId,
         definitionId: link.definitionId,
         itemId,
@@ -129,19 +130,20 @@ export async function completeReceiving(
   const receivingTime = nowDb(timezone());
 
   const receivingId = await withTransaction(async (tx) => {
-    const inserted = await tx
-      .insert(receivings)
-      .values({
+    const inserted = await insertReturning(
+      tx,
+      receivings,
+      {
         receivingTime,
         supplierId,
         employeeId: input.employeeId,
         paymentType: input.paymentType,
         comment: input.cart.comment,
         reference: input.cart.reference,
-      })
-      .returning({ id: receivings.receivingId });
-    const result = Array.isArray(inserted) ? inserted[0] : inserted;
-    const id = result.id;
+      },
+      receivings.receivingId,
+    );
+    const id = inserted[0]!.id;
 
     for (const line of input.cart.cart) {
       const itemRows = await tx

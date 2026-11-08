@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, like, or, sql } from "drizzle-orm";
+import { insertReturning } from "@/lib/db/insert";
 import { getDb } from "@/lib/db";
 import { expenseCategories, expenses, people, suppliers } from "@/db/schema";
 import { dateOrTimeFormat } from "@/lib/config";
@@ -217,10 +218,7 @@ export async function saveValue(input: ExpenseRow): Promise<number> {
     await db.update(expenses).set(values).where(eq(expenses.expenseId, input.expenseId));
     return input.expenseId;
   }
-  const inserted = await db
-    .insert(expenses)
-    .values(values)
-    .returning({ id: expenses.expenseId });
+  const inserted = await insertReturning(db, expenses, values, expenses.expenseId);
   const result = Array.isArray(inserted) ? inserted[0] : inserted;
   return result.id;
 }

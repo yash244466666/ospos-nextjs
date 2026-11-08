@@ -276,9 +276,7 @@ if (unassigned.length > 0) {
   TAB_KEYS.system_info = [...(TAB_KEYS.system_info ?? []), ...unassigned];
 }
 
-export const CONFIG_TABS: ConfigTab[] = Object.entries(TAB_KEYS)
-  .filter(([, keys]) => keys.length > 0)
-  .map(([key, keys]) => ({
+export const CONFIG_TABS: ConfigTab[] = Object.entries(TAB_KEYS).map(([key, keys]) => ({
     key,
     label: TAB_LABELS[key] ?? humanize(key),
     fields: keys.map(fieldFor),

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { insertReturning } from "@/lib/db/insert";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/with-permission";
@@ -39,10 +40,7 @@ export async function saveItemKitAction(formData: FormData) {
       await tx.update(itemKits).set(data).where(eq(itemKits.itemKitId, savedKitId));
       await tx.delete(itemKitItems).where(eq(itemKitItems.itemKitId, savedKitId));
     } else {
-      const inserted = await tx
-        .insert(itemKits)
-        .values(data)
-        .returning({ id: itemKits.itemKitId });
+      const inserted = await insertReturning(tx, itemKits, data, itemKits.itemKitId);
       savedKitId = (Array.isArray(inserted) ? inserted[0] : inserted).id;
     }
 

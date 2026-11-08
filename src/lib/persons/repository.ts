@@ -1,4 +1,5 @@
 import { and, eq, like, ne, or } from "drizzle-orm";
+import { insertReturning } from "@/lib/db/insert";
 import { getDb } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import {
@@ -176,13 +177,10 @@ export async function saveCustomer(
       }
     }
 
-    const inserted = await tx
-      .insert(people)
-      .values(personValues(person))
-      .returning({ id: people.personId });
+    const inserted = await insertReturning(tx, people, personValues(person), people.personId);
     const result = Array.isArray(inserted) ? inserted[0] : inserted;
     id = result.id;
-    await tx.insert(customers).values({
+    await insertReturning(tx, customers, {
       personId: id,
       companyName: customer.companyName ?? null,
       accountNumber: customer.accountNumber ?? null,
@@ -231,13 +229,9 @@ export async function saveSupplier(
       }
     }
 
-    const inserted = await tx
-      .insert(people)
-      .values(personValues(person))
-      .returning({ id: people.personId });
-    const result = Array.isArray(inserted) ? inserted[0] : inserted;
-    id = result.id;
-    await tx.insert(suppliers).values({
+    const inserted = await insertReturning(tx, people, personValues(person), people.personId);
+    id = inserted[0]!.id;
+    await insertReturning(tx, suppliers, {
       personId: id,
       companyName: supplier.companyName ?? "",
       agencyName: supplier.agencyName ?? "",
@@ -280,12 +274,8 @@ export async function saveEmployee(
 
     if (!updated) {
       if (!employee.password) throw new Error("Password required for new employee");
-      const inserted = await tx
-        .insert(people)
-        .values(personValues(person))
-        .returning({ id: people.personId });
-      const result = Array.isArray(inserted) ? inserted[0] : inserted;
-      id = result.id;
+      const inserted = await insertReturning(tx, people, personValues(person), people.personId);
+      id = inserted[0]!.id;
       await tx.insert(employees).values({
         personId: id,
         username: employee.username,

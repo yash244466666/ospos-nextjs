@@ -67,7 +67,15 @@ export async function SaleDocument({
         <tbody>
           {data.lines.map((line, index) => (
             <tr key={index} className="border-t">
-              <td className="p-2">{line.description}</td>
+              <td className="p-2">
+                <div className="font-medium">{line.name ?? line.description}</div>
+                {line.name && line.description ? (
+                  <div className="text-xs text-slate-500">{line.description}</div>
+                ) : null}
+                {line.serialnumber ? (
+                  <div className="text-xs text-slate-500">{line.serialnumber}</div>
+                ) : null}
+              </td>
               <td className="p-2 text-right">{line.quantity}</td>
               <td className="p-2 text-right">{toCurrency(String(line.unitPrice))}</td>
               <td className="p-2 text-right">

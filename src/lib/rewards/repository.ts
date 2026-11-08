@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { insertReturning } from "@/lib/db/insert";
 import { getDb } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { customerPackages } from "@/db/schema";
@@ -68,10 +69,7 @@ export async function saveValue(input: RewardRow): Promise<number> {
         .where(eq(customerPackages.packageId, input.rewardId));
       return input.rewardId;
     }
-    const inserted = await tx
-      .insert(customerPackages)
-      .values({ ...values, deleted: false })
-      .returning({ id: customerPackages.packageId });
+    const inserted = await insertReturning(tx, customerPackages, { ...values, deleted: false }, customerPackages.packageId);
     const result = Array.isArray(inserted) ? inserted[0] : inserted;
     return result.id;
   });

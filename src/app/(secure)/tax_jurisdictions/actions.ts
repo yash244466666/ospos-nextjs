@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { insertReturning } from "@/lib/db/insert";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/with-permission";
@@ -23,7 +24,7 @@ export async function saveTaxJurisdictionAction(formData: FormData) {
     await db.update(taxJurisdictions).set(data).where(eq(taxJurisdictions.jurisdictionId, id));
     outId = id;
   } else {
-    const inserted = await db.insert(taxJurisdictions).values({ ...data, deleted: false }).returning({ id: taxJurisdictions.jurisdictionId });
+    const inserted = await insertReturning(db, taxJurisdictions, { ...data, deleted: false }, taxJurisdictions.jurisdictionId);
     outId = inserted[0].id;
   }
   revalidatePath("/tax_jurisdictions");

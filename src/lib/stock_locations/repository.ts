@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, like, sql } from "drizzle-orm";
+import { insertReturning } from "@/lib/db/insert";
 import { getDb } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import {
@@ -184,7 +185,7 @@ async function insertNewPermission(
   locationName: string,
 ): Promise<void> {
   const permissionId = `${moduleId}_${locationName.replace(/ /g, "_")}`;
-  await tx.insert(permissions).values({
+  await insertReturning(tx, permissions, {
     permissionId,
     moduleId,
     locationId,
@@ -221,16 +222,18 @@ export async function saveValue(
         .from(stockLocations)
         .where(eq(stockLocations.deleted, false));
       const sortOrder = Number(countRows[0]?.value ?? 0);
-      const inserted = await tx
-        .insert(stockLocations)
-        .values({
+      const inserted = await insertReturning(
+        tx,
+        stockLocations,
+        {
           locationName: input.locationName,
           deleted: false,
           isDefault: false,
           sortOrder,
-        })
-        .returning({ id: stockLocations.locationId });
-      const id = (Array.isArray(inserted) ? inserted[0] : inserted).id;
+        },
+        stockLocations.locationId,
+      );
+      const id = inserted[0]!.id;
       for (const moduleId of ["items", "sales", "receivings"]) {
         await insertNewPermission(tx, moduleId, id, input.locationName);
       }

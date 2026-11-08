@@ -1,4 +1,5 @@
 import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { insertReturning } from "@/lib/db/insert";
 import { getDb } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { suppliers, people } from "@/db/schema";
@@ -148,9 +149,7 @@ export async function saveValue(input: {
         })
         .where(eq(suppliers.personId, pid));
     } else {
-      const inserted = await tx
-        .insert(people)
-        .values({
+      const inserted = await insertReturning(tx, people, {
           firstName: input.firstName,
           lastName: input.lastName ?? "",
           phoneNumber: input.phoneNumber ?? "",
@@ -162,8 +161,7 @@ export async function saveValue(input: {
           zip: "",
           country: "",
           comments: "",
-        })
-        .returning({ id: people.personId });
+        }, people.personId);
       const result = Array.isArray(inserted) ? inserted[0] : inserted;
       pid = result.id;
       await tx.insert(suppliers).values({

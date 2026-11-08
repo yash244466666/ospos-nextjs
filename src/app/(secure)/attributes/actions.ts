@@ -43,7 +43,7 @@ export async function saveAttributeAction(formData: FormData) {
   const valuesJson = (formData.get("values") as string) || "[]";
   const values: string[] = JSON.parse(valuesJson);
 
-  const id = saveDefinition({
+  await saveDefinition({
     definitionId,
     definitionName,
     definitionType,
@@ -57,7 +57,7 @@ export async function saveAttributeAction(formData: FormData) {
 
 export async function deleteAttributeAction(definitionId: number) {
   await requirePermission("attributes");
-  deleteDefinition(definitionId);
+  await deleteDefinition(definitionId);
   revalidatePath("/attributes");
   redirect("/attributes");
 }
@@ -79,13 +79,13 @@ export async function getAttributeValuesAction(definitionId: number) {
 
 export async function saveAttributeValueAction(definitionId: number, itemId: number, value: string) {
   await requirePermission("attributes");
-  saveAttributeValue({ definitionId, itemId, attributeValue: value });
+  await saveAttributeValue({ definitionId, itemId, attributeValue: value });
   revalidatePath(`/items/${itemId}`);
 }
 
 export async function deleteAttributeValueAction(attributeId: number) {
   await requirePermission("attributes");
-  deleteAttributeValue(attributeId);
+  await deleteAttributeValue(attributeId);
   revalidatePath("/attributes");
 }
 

@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { insertReturning } from "@/lib/db/insert";
 import { getDb } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { cashUp, employees, people } from "@/db/schema";
@@ -82,10 +83,7 @@ export async function saveCashup(data: CashupInput): Promise<number> {
       await tx.update(cashUp).set(values).where(eq(cashUp.cashupId, data.cashupId));
       return data.cashupId;
     }
-    const inserted = await tx
-      .insert(cashUp)
-      .values(values)
-      .returning({ id: cashUp.cashupId });
+    const inserted = await insertReturning(tx, cashUp, values, cashUp.cashupId);
     const result = Array.isArray(inserted) ? inserted[0] : inserted;
     return result.id;
   });

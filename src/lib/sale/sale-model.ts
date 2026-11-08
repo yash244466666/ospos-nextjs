@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, gte, inArray, isNotNull, like, or, sql } from "drizzle-orm";
+import { insertReturning } from "@/lib/db/insert";
 import { getDb } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { affectedRows } from "@/lib/db/execute";
@@ -154,7 +155,7 @@ async function saveCustomerRewards(
   const pointsPercent = packageRows[0]?.pointsPercent ?? 0;
   const earned = (totalAmount * pointsPercent) / 100;
   await adjustRewardPoints(tx, customerId, earned);
-  await tx.insert(salesRewardPoints).values({ saleId, earned, used: totalAmountUsed });
+  await insertReturning(tx, salesRewardPoints, { saleId, earned, used: totalAmountUsed });
 }
 
 export async function clearSuspendedSaleDetail(
@@ -209,7 +210,7 @@ export async function saveSale(input: CompleteSaleInput): Promise<number> {
     };
 
     if (saleId === -1) {
-      const inserted = await tx.insert(sales).values(header).returning({ id: sales.saleId });
+      const inserted = await insertReturning(tx, sales, header, sales.saleId);
       const result = Array.isArray(inserted) ? inserted[0] : inserted;
       saleId = result.id;
     } else {

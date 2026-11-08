@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { saveConfigTabAction } from "@/app/(secure)/config/actions";
 import type { ConfigTab } from "@/lib/config/tabs";
@@ -60,6 +61,27 @@ export default function ConfigTabs({ tabs, values, secretsSet }: Props) {
           <button type="submit" disabled={pending} className="bg-blue-600 text-white px-4 py-1 rounded disabled:opacity-50" data-testid="save-config-button">
             {pending ? "Saving…" : `Save ${tab.label}`}
           </button>
+          {active === "stock" ? (
+            <div className="mt-4 border-t pt-3">
+              <Link href="/config/stock-locations" className="text-blue-600">
+                Manage stock locations
+              </Link>
+            </div>
+          ) : null}
+          {active === "table" ? (
+            <div className="mt-4 border-t pt-3">
+              <Link href="/dinner_tables" className="text-blue-600">
+                Manage dinner tables
+              </Link>
+            </div>
+          ) : null}
+          {active === "reward" ? (
+            <div className="mt-4 border-t pt-3">
+              <Link href="/rewards" className="text-blue-600">
+                Manage reward packages
+              </Link>
+            </div>
+          ) : null}
         </form>
       )}
     </div>

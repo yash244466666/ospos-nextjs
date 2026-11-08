@@ -1,4 +1,5 @@
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { insertReturning } from "@/lib/db/insert";
 import { auth } from "@/lib/auth/options";
 import { requirePermissionApi } from "@/lib/auth/with-permission";
 import { getDb } from "@/lib/db";
@@ -286,10 +287,7 @@ export async function POST(req: Request) {
         if (isUpdate) {
           await tx.update(items).set(itemValues).where(eq(items.itemId, itemId));
         } else {
-          const inserted = await tx
-            .insert(items)
-            .values(itemValues as typeof items.$inferInsert)
-            .returning({ id: items.itemId });
+          const inserted = await insertReturning(tx, items, itemValues as typeof items.$inferInsert, items.itemId);
           savedItemId = (Array.isArray(inserted) ? inserted[0] : inserted).id;
           await tx
             .update(items)
@@ -314,7 +312,7 @@ export async function POST(req: Request) {
             Number(percent) >= 0 &&
             taxName !== ""
           ) {
-            await tx.insert(itemsTaxes).values({
+            await insertReturning(tx, itemsTaxes, {
               itemId: savedItemId,
               name: taxName,
               percent: toDbDecimal(percent, 3),
@@ -410,11 +408,13 @@ export async function POST(req: Request) {
             attributeId =
               existing[0]?.attributeId ??
               (
-                await tx
-                  .insert(attributeValues)
-                  .values({ attributeValue: normalized })
-                  .returning({ id: attributeValues.attributeId })
-              ).at(0)?.id ??
+                await insertReturning(
+                  tx,
+                  attributeValues,
+                  { attributeValue: normalized },
+                  attributeValues.attributeId,
+                )
+              )[0]?.id ??
               null;
           } else if (definition.definitionType === "DECIMAL") {
             const numeric = toDbDecimal(raw, 3);
@@ -426,10 +426,7 @@ export async function POST(req: Request) {
             attributeId =
               existing[0]?.attributeId ??
               (
-                await tx
-                  .insert(attributeValues)
-                  .values({ attributeDecimal: numeric })
-                  .returning({ id: attributeValues.attributeId })
+                await insertReturning(tx, attributeValues, { attributeDecimal: numeric }, attributeValues.attributeId)
               ).at(0)?.id ??
               null;
           } else if (definition.definitionType === "DATE") {
@@ -445,10 +442,7 @@ export async function POST(req: Request) {
             attributeId =
               existing[0]?.attributeId ??
               (
-                await tx
-                  .insert(attributeValues)
-                  .values({ attributeDate: raw })
-                  .returning({ id: attributeValues.attributeId })
+                await insertReturning(tx, attributeValues, { attributeDate: raw }, attributeValues.attributeId)
               ).at(0)?.id ??
               null;
           } else {
@@ -460,10 +454,7 @@ export async function POST(req: Request) {
             attributeId =
               existing[0]?.attributeId ??
               (
-                await tx
-                  .insert(attributeValues)
-                  .values({ attributeValue: raw })
-                  .returning({ id: attributeValues.attributeId })
+                await insertReturning(tx, attributeValues, { attributeValue: raw }, attributeValues.attributeId)
               ).at(0)?.id ??
               null;
           }

@@ -1,4 +1,5 @@
 import { and, asc, eq, like } from "drizzle-orm";
+import { insertReturning } from "@/lib/db/insert";
 import { getDb } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { dinnerTables } from "@/db/schema";
@@ -53,10 +54,7 @@ export async function saveValue(input: DinnerTableRow): Promise<number> {
         .where(eq(dinnerTables.dinnerTableId, input.dinnerTableId));
       return input.dinnerTableId;
     }
-    const inserted = await tx
-      .insert(dinnerTables)
-      .values({ name: input.name, status: input.status, deleted: false })
-      .returning({ id: dinnerTables.dinnerTableId });
+    const inserted = await insertReturning(tx, dinnerTables, { name: input.name, status: input.status, deleted: false }, dinnerTables.dinnerTableId);
     const result = Array.isArray(inserted) ? inserted[0] : inserted;
     return result.id;
   });

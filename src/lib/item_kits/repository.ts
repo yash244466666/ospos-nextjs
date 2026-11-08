@@ -1,4 +1,5 @@
 import { asc, eq, sql } from "drizzle-orm";
+import { insertReturning } from "@/lib/db/insert";
 import { getDb } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { itemKits, itemKitItems } from "@/db/schema";
@@ -124,10 +125,7 @@ export async function saveValue(input: {
       await tx.update(itemKits).set(values).where(eq(itemKits.itemKitId, kid));
       await tx.delete(itemKitItems).where(eq(itemKitItems.itemKitId, kid));
     } else {
-      const inserted = await tx
-        .insert(itemKits)
-        .values(values)
-        .returning({ id: itemKits.itemKitId });
+      const inserted = await insertReturning(tx, itemKits, values, itemKits.itemKitId);
       const result = Array.isArray(inserted) ? inserted[0] : inserted;
       kid = result.id;
     }

@@ -62,9 +62,10 @@ export async function buildReceiptData(saleId: number): Promise<ReceiptData | nu
     customerName,
     lines: saleItems.map((it) => {
       const item = itemById.get(it.itemId);
-      const description = it.description?.trim() ? it.description : (item?.name ?? "");
       return {
-        description,
+        name: item?.name ?? it.description ?? "",
+        description: it.description ?? "",
+        serialnumber: it.serialnumber ?? "",
         itemNumber: item?.itemNumber ?? "",
         quantity: Number(it.quantityPurchased),
         unitPrice: Number(it.itemUnitPrice),

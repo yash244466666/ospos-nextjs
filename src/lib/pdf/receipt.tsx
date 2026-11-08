@@ -8,12 +8,15 @@ export interface ReceiptData {
   saleTime: string;
   customerName: string;
   lines: {
+    name: string;
     description: string;
     itemNumber?: string;
+    serialnumber?: string;
     quantity: number;
     unitPrice: number;
     discount?: number;
     total?: number;
+    taxedFlag?: string;
   }[];
   taxes: { name: string; amount: number; taxType?: number }[];
   subtotal?: number;
@@ -48,7 +51,7 @@ export function ReceiptDocument({ data }: { data: ReceiptData }) {
         <View style={styles.divider} />
         {data.lines.map((l, i) => (
           <View key={i} style={styles.row}>
-            <Text>{l.description} × {l.quantity}</Text>
+            <Text>{l.name ?? l.description} × {l.quantity}</Text>
             <Text>{(l.total ?? l.unitPrice * l.quantity).toFixed(2)}</Text>
           </View>
         ))}

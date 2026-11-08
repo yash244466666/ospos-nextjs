@@ -1,8 +1,10 @@
 import { and, asc, eq, inArray, isNull, like, sql } from "drizzle-orm";
+import { insertReturning } from "@/lib/db/insert";
 import { getDb } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { attributeDefinitions, attributeValues, attributeLinks } from "@/db/schema";
-import { toDbDecimal } from "@/lib/money";
+import { toDbDecimal, isValidDecimal } from "@/lib/money";
+import { isValidDate } from "@/lib/datetime";
 
 export const DEFINITION_TYPES = ["TEXT", "DROPDOWN", "DECIMAL", "DATE", "CHECKBOX", "GROUP"] as const;
 export type DefinitionType = typeof DEFINITION_TYPES[number];
@@ -78,6 +80,93 @@ export async function listDropdownValues(
   return rows;
 }
 
+function normalizeAttributeValue(
+  type: DefinitionType,
+  value: { value: string | null; date: string | null; decimal: string | null },
+): { attributeValue?: string; attributeDate?: string; attributeDecimal?: string } {
+  if (type === "DECIMAL") {
+    const source = value.decimal ?? value.value ?? "";
+    if (!isValidDecimal(source)) throw new Error("Existing values cannot be converted to DECIMAL");
+    return { attributeDecimal: toDbDecimal(source, 3) };
+  }
+  if (type === "DATE") {
+    const source = value.date ?? value.value ?? "";
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(source) || !isValidDate(source, "Y-m-d")) {
+      throw new Error("Existing values cannot be converted to DATE");
+    }
+    return { attributeDate: source };
+  }
+  const source = value.value ?? value.date ?? value.decimal ?? "";
+  if (type === "CHECKBOX" && source !== "0" && source !== "1") {
+    throw new Error("Existing values cannot be converted to CHECKBOX");
+  }
+  return { attributeValue: source };
+}
+
+async function convertDefinitionValues(
+  tx: Awaited<ReturnType<typeof getDb>>,
+  definitionId: number,
+  fromType: DefinitionType,
+  toType: DefinitionType,
+  allowOptions: boolean,
+): Promise<void> {
+  const links = await tx
+    .select({
+      link: attributeLinks,
+      value: attributeValues,
+    })
+    .from(attributeLinks)
+    .innerJoin(attributeValues, eq(attributeValues.attributeId, attributeLinks.attributeId))
+    .where(eq(attributeLinks.definitionId, definitionId));
+  for (const row of links) {
+    const isOption =
+      row.link.itemId === null && row.link.saleId === null && row.link.receivingId === null;
+    if (isOption && !allowOptions) continue;
+    const normalized = normalizeAttributeValue(toType, {
+      value: row.value.attributeValue,
+      date: row.value.attributeDate,
+      decimal: row.value.attributeDecimal,
+    });
+    const stored =
+      await tx
+        .select({ id: attributeValues.attributeId })
+        .from(attributeValues)
+        .where(
+          normalizeAttributeValueColumnCondition(toType, normalized),
+        )
+        .limit(1);
+    let attributeId = stored[0]?.id ?? null;
+    if (attributeId === null) {
+      const inserted = await insertReturning(tx, attributeValues, normalized, attributeValues.attributeId);
+      attributeId = (Array.isArray(inserted) ? inserted[0] : inserted).id;
+    }
+    await tx
+      .update(attributeLinks)
+      .set({ attributeId })
+      .where(
+        and(
+          eq(attributeLinks.definitionId, definitionId),
+          eq(attributeLinks.attributeId, row.link.attributeId as number),
+          row.link.itemId === null ? isNull(attributeLinks.itemId) : eq(attributeLinks.itemId, row.link.itemId),
+          row.link.saleId === null ? isNull(attributeLinks.saleId) : eq(attributeLinks.saleId, row.link.saleId),
+          row.link.receivingId === null
+            ? isNull(attributeLinks.receivingId)
+            : eq(attributeLinks.receivingId, row.link.receivingId),
+        ),
+      );
+  }
+  void fromType;
+}
+
+function normalizeAttributeValueColumnCondition(
+  type: DefinitionType,
+  value: { attributeValue?: string; attributeDate?: string; attributeDecimal?: string },
+) {
+  if (type === "DECIMAL") return eq(attributeValues.attributeDecimal, value.attributeDecimal ?? "");
+  if (type === "DATE") return eq(attributeValues.attributeDate, value.attributeDate ?? "");
+  return eq(attributeValues.attributeValue, value.attributeValue ?? "");
+}
+
 export async function saveDefinition(
   data: {
     definitionId?: number;
@@ -94,15 +183,28 @@ export async function saveDefinition(
     let id: number;
     if (definitionId && definitionId > 0) {
       id = definitionId;
+      const existing = (
+        await tx
+          .select()
+          .from(attributeDefinitions)
+          .where(eq(attributeDefinitions.definitionId, id))
+          .limit(1)
+      )[0];
+      if (existing && existing.definitionType !== data.definitionType) {
+        await convertDefinitionValues(
+          tx,
+          id,
+          existing.definitionType as DefinitionType,
+          data.definitionType,
+          id === -1,
+        );
+      }
       await tx
         .update(attributeDefinitions)
         .set(rest)
         .where(eq(attributeDefinitions.definitionId, id));
     } else {
-      const inserted = await tx
-        .insert(attributeDefinitions)
-        .values({ ...rest, deleted: false })
-        .returning({ id: attributeDefinitions.definitionId });
+      const inserted = await insertReturning(tx, attributeDefinitions, { ...rest, deleted: false }, attributeDefinitions.definitionId);
       const result = Array.isArray(inserted) ? inserted[0] : inserted;
       id = result.id;
     }
@@ -119,10 +221,7 @@ export async function saveDefinition(
         if (existingValue[0]) {
           attrId = existingValue[0].attributeId;
         } else {
-          const ins = await tx
-            .insert(attributeValues)
-            .values({ attributeValue: trimmed })
-            .returning({ id: attributeValues.attributeId });
+          const ins = await insertReturning(tx, attributeValues, { attributeValue: trimmed }, attributeValues.attributeId);
           const result = Array.isArray(ins) ? ins[0] : ins;
           attrId = result.id;
         }
@@ -140,9 +239,7 @@ export async function saveDefinition(
           )
           .limit(1);
         if (linkExists.length === 0) {
-          await tx
-            .insert(attributeLinks)
-            .values({ definitionId: id, attributeId: attrId, itemId: null });
+          await insertReturning(tx, attributeLinks, { definitionId: id, attributeId: attrId, itemId: null });
         }
       }
     }
@@ -286,12 +383,13 @@ export async function saveAttributeValue(input: {
       attributeId = existingLink[0].attributeId;
     }
     if (attributeId === null) {
-      const inserted = await tx
-        .insert(attributeValues)
-        .values({ attributeValue: value })
-        .returning({ id: attributeValues.attributeId });
-      const result = Array.isArray(inserted) ? inserted[0] : inserted;
-      attributeId = result.id;
+      const inserted = await insertReturning(
+        tx,
+        attributeValues,
+        { attributeValue: value },
+        attributeValues.attributeId,
+      );
+      attributeId = inserted[0]!.id;
     }
 
     if (existingLink.length > 0) {
@@ -307,9 +405,7 @@ export async function saveAttributeValue(input: {
           ),
         );
     } else {
-      await tx
-        .insert(attributeLinks)
-        .values({
+      await insertReturning(tx, attributeLinks, {
           definitionId: input.definitionId,
           itemId: input.itemId,
           attributeId,
@@ -467,11 +563,13 @@ export async function saveTypedItemAttribute(input: {
       attributeId =
         rows[0]?.id ??
         (
-          await tx
-            .insert(attributeValues)
-            .values({ attributeDate: value })
-            .returning({ id: attributeValues.attributeId })
-        ).at(0)?.id ??
+          await insertReturning(
+            tx,
+            attributeValues,
+            { attributeDate: value },
+            attributeValues.attributeId,
+          )
+        )[0]?.id ??
         null;
     } else if (input.definitionType === "DECIMAL") {
       const numeric = toDbDecimal(value, 3);
@@ -483,10 +581,7 @@ export async function saveTypedItemAttribute(input: {
       attributeId =
         rows[0]?.id ??
         (
-          await tx
-            .insert(attributeValues)
-            .values({ attributeDecimal: numeric })
-            .returning({ id: attributeValues.attributeId })
+          await insertReturning(tx, attributeValues, { attributeDecimal: numeric }, attributeValues.attributeId)
         ).at(0)?.id ??
         null;
     } else {
@@ -504,10 +599,7 @@ export async function saveTypedItemAttribute(input: {
       attributeId =
         rows[0]?.id ??
         (
-          await tx
-            .insert(attributeValues)
-            .values({ attributeValue: normalized })
-            .returning({ id: attributeValues.attributeId })
+          await insertReturning(tx, attributeValues, { attributeValue: normalized }, attributeValues.attributeId)
         ).at(0)?.id ??
         null;
     }

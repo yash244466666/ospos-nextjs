@@ -11,6 +11,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { getDb } from "@/lib/db";
+import { insertReturning } from "@/lib/db/insert";
 import { withTransaction } from "@/lib/db/transaction";
 import {
   attributeDefinitions,
@@ -510,7 +511,7 @@ export async function saveItem(input: SaveItemInput): Promise<number> {
     if (itemId && itemId > 0) {
       await tx.update(items).set(values).where(eq(items.itemId, itemId));
     } else {
-      const inserted = await tx.insert(items).values(values).returning({ id: items.itemId });
+      const inserted = await insertReturning(tx, items, values, items.itemId);
       const result = Array.isArray(inserted) ? inserted[0] : inserted;
       itemId = result.id;
       await tx

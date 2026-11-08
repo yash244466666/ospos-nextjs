@@ -1,4 +1,5 @@
 import { and, asc, eq, like, sql } from "drizzle-orm";
+import { insertReturning } from "@/lib/db/insert";
 import { getDb } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { taxCategories, taxCodes, taxJurisdictions, taxRates } from "@/db/schema";
@@ -99,10 +100,7 @@ export async function saveTaxCategory(input: TaxCategoryRow): Promise<number> {
         .where(eq(taxCategories.taxCategoryId, input.taxCategoryId));
       return input.taxCategoryId;
     }
-    const inserted = await tx
-      .insert(taxCategories)
-      .values({ ...values, deleted: false })
-      .returning({ id: taxCategories.taxCategoryId });
+    const inserted = await insertReturning(tx, taxCategories, { ...values, deleted: false }, taxCategories.taxCategoryId);
     const result = Array.isArray(inserted) ? inserted[0] : inserted;
     return result.id;
   });
@@ -177,16 +175,13 @@ export async function saveTaxCode(input: {
     if (id) {
       await tx.update(taxCodes).set(values).where(eq(taxCodes.taxCodeId, id));
     } else {
-      const inserted = await tx
-        .insert(taxCodes)
-        .values({ ...values, deleted: false })
-        .returning({ id: taxCodes.taxCodeId });
+      const inserted = await insertReturning(tx, taxCodes, { ...values, deleted: false }, taxCodes.taxCodeId);
       const result = Array.isArray(inserted) ? inserted[0] : inserted;
       id = result.id;
     }
     await tx.delete(taxRates).where(eq(taxRates.rateTaxCodeId, id));
     for (const j of input.jurisdictions) {
-      await tx.insert(taxRates).values({
+      await insertReturning(tx, taxRates, {
         rateTaxCodeId: id,
         rateTaxCategoryId: j.taxCategoryId,
         rateJurisdictionId: j.jurisdictionId,
@@ -305,12 +300,13 @@ export async function saveJurisdiction(input: TaxJurisdictionRow): Promise<numbe
         .where(eq(taxJurisdictions.jurisdictionId, input.jurisdictionId));
       return input.jurisdictionId;
     }
-    const inserted = await tx
-      .insert(taxJurisdictions)
-      .values({ ...values, deleted: false })
-      .returning({ id: taxJurisdictions.jurisdictionId });
-    const result = Array.isArray(inserted) ? inserted[0] : inserted;
-    return result.id;
+    const inserted = await insertReturning(
+      tx,
+      taxJurisdictions,
+      { ...values, deleted: false },
+      taxJurisdictions.jurisdictionId,
+    );
+    return inserted[0]!.id;
   });
 }
 
