@@ -1,14 +1,14 @@
 import { requirePermission } from "@/lib/auth/with-permission";
 import { eq } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { giftcards } from "@/db/schema";
 import GiftcardsTable from "@/components/giftcards/giftcards-table";
 import Link from "next/link";
 
 export default async function GiftcardsPage() {
   await requirePermission("giftcards");
-  const db = getDbSync();
-  const rows = db.select().from(giftcards).where(eq(giftcards.deleted, false)).all();
+  const db = await getDb();
+  const rows = await db.select().from(giftcards).where(eq(giftcards.deleted, false));
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">

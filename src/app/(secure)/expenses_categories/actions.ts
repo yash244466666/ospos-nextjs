@@ -4,23 +4,23 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/with-permission";
-import { getDbSync } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { expenseCategories } from "@/db/schema";
 
 export async function saveCategoryAction(formData: FormData) {
   await requirePermission("expenses_categories");
-  const db = getDbSync();
+  const db = await getDb();
   const id = formData.get("expenseCategoryId") as string;
   const category = (formData.get("category") as string)?.trim();
   if (!category) throw new Error("Category name required");
   const data = {
-    category,
-    description: (formData.get("description") as string) || null,
+    categoryName: category,
+    categoryDescription: (formData.get("description") as string) || "",
   };
   if (id && parseInt(id, 10) > 0) {
-    db.update(expenseCategories).set(data).where(eq(expenseCategories.expenseCategoryId, parseInt(id, 10))).run();
+    await db.update(expenseCategories).set(data).where(eq(expenseCategories.expenseCategoryId, parseInt(id, 10)));
   } else {
-    db.insert(expenseCategories).values(data).run();
+    await db.insert(expenseCategories).values(data);
   }
   revalidatePath("/expenses_categories");
   redirect("/expenses_categories");
@@ -28,8 +28,8 @@ export async function saveCategoryAction(formData: FormData) {
 
 export async function deleteCategoryAction(id: number) {
   await requirePermission("expenses_categories");
-  const db = getDbSync();
-  db.update(expenseCategories).set({ deleted: true }).where(eq(expenseCategories.expenseCategoryId, id)).run();
+  const db = await getDb();
+  await db.update(expenseCategories).set({ deleted: true }).where(eq(expenseCategories.expenseCategoryId, id));
   revalidatePath("/expenses_categories");
 }
 import { getAll as listAll, getInfo as info, search, getTotalRows } from "@/lib/expenses_categories/repository";

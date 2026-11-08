@@ -5,7 +5,7 @@ import Link from "next/link";
 
 export default async function CashupsPage() {
   await requirePermission("cashups");
-  const rows = listCashups();
+  const rows = await listCashups();
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">

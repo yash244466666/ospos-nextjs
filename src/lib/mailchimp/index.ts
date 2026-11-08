@@ -27,8 +27,11 @@ async function callMailchimp(method: string, path: string, body?: unknown): Prom
     }
     const data = await res.json();
     return { ok: true, message: "OK", data };
-  } catch (err: any) {
-    return { ok: false, message: err?.message ?? "Mailchimp call failed" };
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Mailchimp call failed",
+    };
   }
 }
 

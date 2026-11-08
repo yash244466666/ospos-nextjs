@@ -1,14 +1,11 @@
 import { requirePermission } from "@/lib/auth/with-permission";
-import { eq } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
-import { expenseCategories } from "@/db/schema";
+import { getAll as listCategories } from "@/lib/expenses_categories/repository";
 import CategoriesTable from "@/components/expenses/categories-table";
 import Link from "next/link";
 
 export default async function ExpensesCategoriesPage() {
   await requirePermission("expenses_categories");
-  const db = getDbSync();
-  const rows = db.select().from(expenseCategories).where(eq(expenseCategories.deleted, false)).all();
+  const rows = await listCategories();
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">

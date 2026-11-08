@@ -5,21 +5,19 @@ import { saveCashupAction } from "@/app/(secure)/cashups/actions";
 
 interface Initial {
   cashupId: number;
-  openDate: number | null;
-  closeDate: number | null;
-  openAmountCash: number;
-  transferAmountCash: number;
-  closedAmountCash: number;
-  note: string | null;
+  openDate: string | null;
+  closeDate: string | null;
+  openAmountCash: string;
+  transferAmountCash: string;
+  closedAmountCash: string;
+  note: boolean;
   employeeId: number | null;
   deleted: boolean;
 }
 
-function toInputValue(ts: number | null): string {
+function toInputValue(ts: string | null): string {
   if (!ts) return "";
-  const d = new Date(ts * 1000);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return ts.replace(" ", "T").slice(0, 16);
 }
 
 export default function CashupForm({ initial, employees }: { initial: Initial | null; employees: { personId: number; label: string }[] }) {
@@ -43,15 +41,15 @@ export default function CashupForm({ initial, employees }: { initial: Initial | 
       </div>
       <div>
         <label className="block text-sm">Open Cash</label>
-        <input type="number" step="0.01" name="openAmountCash" defaultValue={String(initial?.openAmountCash ?? 0)} className="border px-2 py-1 w-full" />
+        <input type="number" step="0.01" name="openAmountCash" defaultValue={initial?.openAmountCash ?? "0"} className="border px-2 py-1 w-full" />
       </div>
       <div>
         <label className="block text-sm">Transfer Cash</label>
-        <input type="number" step="0.01" name="transferAmountCash" defaultValue={String(initial?.transferAmountCash ?? 0)} className="border px-2 py-1 w-full" />
+        <input type="number" step="0.01" name="transferAmountCash" defaultValue={initial?.transferAmountCash ?? "0"} className="border px-2 py-1 w-full" />
       </div>
       <div>
         <label className="block text-sm">Closed Cash</label>
-        <input type="number" step="0.01" name="closedAmountCash" defaultValue={String(initial?.closedAmountCash ?? 0)} className="border px-2 py-1 w-full" />
+        <input type="number" step="0.01" name="closedAmountCash" defaultValue={initial?.closedAmountCash ?? "0"} className="border px-2 py-1 w-full" />
       </div>
       <div>
         <label className="block text-sm">Employee</label>
@@ -60,9 +58,9 @@ export default function CashupForm({ initial, employees }: { initial: Initial | 
           {employees.map((e) => <option key={e.personId} value={e.personId}>{e.label}</option>)}
         </select>
       </div>
-      <div>
+      <div className="flex items-center gap-2">
+        <input type="checkbox" name="note" defaultChecked={initial?.note ?? false} />
         <label className="block text-sm">Note</label>
-        <textarea name="note" defaultValue={initial?.note ?? ""} className="border px-2 py-1 w-full" rows={2} />
       </div>
       <button type="submit" disabled={pending} className="bg-blue-600 text-white px-4 py-1 rounded disabled:opacity-50" data-testid="save-button">
         {pending ? "Saving…" : "Save"}

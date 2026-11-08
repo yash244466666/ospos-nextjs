@@ -1,14 +1,11 @@
 import { requirePermission } from "@/lib/auth/with-permission";
-import { eq } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
-import { rewards } from "@/db/schema";
+import { getAll as listRewards } from "@/lib/rewards/repository";
 import RewardsTable from "@/components/rewards/rewards-table";
 import Link from "next/link";
 
 export default async function RewardsPage() {
   await requirePermission("config");
-  const db = getDbSync();
-  const rows = db.select().from(rewards).where(eq(rewards.deleted, false)).all();
+  const rows = await listRewards();
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">

@@ -5,7 +5,7 @@ import { saveExpenseAction } from "@/app/(secure)/expenses/actions";
 
 interface Initial {
   expenseId: number;
-  amount: number | null;
+  amount: string | null;
   paymentType: string | null;
   expenseCategoryId: number | null;
   description: string | null;

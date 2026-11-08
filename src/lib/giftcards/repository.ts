@@ -1,90 +1,173 @@
-import { eq, and, like, desc, asc, sql } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
+import { and, desc, eq, like, sql } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { withTransaction } from "@/lib/db/transaction";
 import { giftcards, people } from "@/db/schema";
+import { toDbDecimal, type DecimalInput } from "@/lib/money";
+import { nowDb } from "@/lib/datetime";
+import { timezone } from "@/lib/config";
 
 export interface GiftcardRow {
   giftcardId: number;
+  recordTime: string;
   giftcardNumber: string;
-  value: number;
+  value: string;
   personId: number | null;
   deleted: boolean;
 }
 
-export interface GiftcardValue { giftcardNumber: string; value: number; personId: number | null; }
+export interface GiftcardValue {
+  giftcardNumber: string;
+  value: string;
+  personId: number | null;
+}
 
-export function getAll(limit = 25, offset = 0): GiftcardRow[] {
-  return getDbSync().select().from(giftcards)
+function toGiftcardRow(row: typeof giftcards.$inferSelect): GiftcardRow {
+  return {
+    giftcardId: row.giftcardId,
+    recordTime: row.recordTime,
+    giftcardNumber: row.giftcardNumber ?? "",
+    value: row.value,
+    personId: row.personId,
+    deleted: row.deleted,
+  };
+}
+
+export async function getAll(limit = 25, offset = 0): Promise<GiftcardRow[]> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(giftcards)
     .where(eq(giftcards.deleted, false))
     .orderBy(desc(giftcards.giftcardId))
-    .limit(limit).offset(offset).all() as GiftcardRow[];
+    .limit(limit)
+    .offset(offset);
+  return rows.map(toGiftcardRow);
 }
 
-export function getInfo(giftcardId: number): GiftcardRow | null {
-  return (getDbSync().select().from(giftcards)
-    .where(eq(giftcards.giftcardId, giftcardId)).get() as GiftcardRow) ?? null;
+export async function getInfo(giftcardId: number): Promise<GiftcardRow | null> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(giftcards)
+    .where(eq(giftcards.giftcardId, giftcardId))
+    .limit(1);
+  return rows[0] ? toGiftcardRow(rows[0]) : null;
 }
 
-export function getGiftcardValue(giftcardNumber: string): GiftcardValue | null {
-  const row = getDbSync().select().from(giftcards)
-    .where(and(eq(giftcards.giftcardNumber, giftcardNumber), eq(giftcards.deleted, false))).get() as GiftcardRow | undefined;
+export async function getGiftcardValue(
+  giftcardNumber: string,
+): Promise<GiftcardValue | null> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(giftcards)
+    .where(and(eq(giftcards.giftcardNumber, giftcardNumber), eq(giftcards.deleted, false)))
+    .limit(1);
+  const row = rows[0];
   if (!row) return null;
-  return { giftcardNumber: row.giftcardNumber, value: row.value, personId: row.personId };
+  return {
+    giftcardNumber: row.giftcardNumber ?? "",
+    value: row.value,
+    personId: row.personId,
+  };
 }
 
-export function getGiftcardCustomer(giftcardNumber: string): { personId: number; firstName: string; lastName: string } | null {
-  const db = getDbSync();
-  const row = db.select().from(giftcards).where(eq(giftcards.giftcardNumber, giftcardNumber)).get() as GiftcardRow | undefined;
+export async function getGiftcardCustomer(
+  giftcardNumber: string,
+): Promise<{ personId: number; firstName: string; lastName: string } | null> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(giftcards)
+    .where(eq(giftcards.giftcardNumber, giftcardNumber))
+    .limit(1);
+  const row = rows[0];
   if (!row?.personId) return null;
-  const person = db.select().from(people).where(eq(people.personId, row.personId)).get();
+  const personRows = await db
+    .select()
+    .from(people)
+    .where(eq(people.personId, row.personId))
+    .limit(1);
+  const person = personRows[0];
   if (!person) return null;
-  return { personId: person.personId, firstName: person.firstName, lastName: person.lastName ?? "" };
+  return { personId: person.personId, firstName: person.firstName, lastName: person.lastName };
 }
 
-export function saveValue(input: { giftcardId?: number; giftcardNumber: string; value: number; personId: number | null }): number {
-  const db = getDbSync();
-  return db.transaction((tx) => {
+export async function saveValue(input: {
+  giftcardId?: number;
+  giftcardNumber: string;
+  value: DecimalInput;
+  personId: number | null;
+}): Promise<number> {
+  return withTransaction(async (tx) => {
+    const values = {
+      giftcardNumber: input.giftcardNumber,
+      value: toDbDecimal(input.value, 2),
+      personId: input.personId,
+    };
     if (input.giftcardId) {
-      tx.update(giftcards).set({
-        giftcardNumber: input.giftcardNumber, value: input.value, personId: input.personId,
-      }).where(eq(giftcards.giftcardId, input.giftcardId)).run();
+      await tx.update(giftcards).set(values).where(eq(giftcards.giftcardId, input.giftcardId));
       return input.giftcardId;
     }
-    return tx.insert(giftcards).values({
-      giftcardNumber: input.giftcardNumber, value: input.value, personId: input.personId, deleted: false,
-    }).returning({ id: giftcards.giftcardId }).get().id;
+    const inserted = await tx
+      .insert(giftcards)
+      .values({ ...values, recordTime: nowDb(timezone()), deleted: false })
+      .returning({ id: giftcards.giftcardId });
+    const result = Array.isArray(inserted) ? inserted[0] : inserted;
+    return result.id;
   });
 }
 
-export function deleteGiftcard(giftcardId: number): void {
-  getDbSync().update(giftcards).set({ deleted: true })
-    .where(eq(giftcards.giftcardId, giftcardId)).run();
+export async function deleteGiftcard(giftcardId: number): Promise<void> {
+  const db = await getDb();
+  await db.update(giftcards).set({ deleted: true }).where(eq(giftcards.giftcardId, giftcardId));
 }
 
-export function search(term: string, limit = 25): GiftcardRow[] {
-  return getDbSync().select().from(giftcards)
-    .where(and(eq(giftcards.deleted, false), like(giftcards.giftcardNumber, `%${term}%`)))
-    .limit(limit).all() as GiftcardRow[];
+export async function search(term: string, limit = 25): Promise<GiftcardRow[]> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(giftcards)
+    .where(
+      and(
+        eq(giftcards.deleted, false),
+        like(giftcards.giftcardNumber, `%${term}%`),
+      ),
+    )
+    .limit(limit);
+  return rows.map(toGiftcardRow);
 }
 
 export function getEmptyRow(): GiftcardRow {
-  return { giftcardId: 0, giftcardNumber: "", value: 0, personId: null, deleted: false };
+  return {
+    giftcardId: 0,
+    recordTime: "",
+    giftcardNumber: "",
+    value: "0",
+    personId: null,
+    deleted: false,
+  };
 }
 
-export function getTotalRows(): number {
-  const r = getDbSync().select({ c: sql<number>`count(*)` })
-    .from(giftcards).where(eq(giftcards.deleted, false)).get();
-  return r?.c ?? 0;
+export async function getTotalRows(): Promise<number> {
+  const db = await getDb();
+  const rows = await db
+    .select({ c: sql<number>`count(*)` })
+    .from(giftcards)
+    .where(eq(giftcards.deleted, false));
+  return Number(rows[0]?.c ?? 0);
 }
 
-export function getSearchSuggestions(term: string, limit = 25): GiftcardRow[] {
+export async function getSearchSuggestions(
+  term: string,
+  limit = 25,
+): Promise<GiftcardRow[]> {
   return search(term, limit);
 }
 
-export function deleteList(ids: number[]): void {
-  const db = getDbSync();
+export async function deleteList(ids: number[]): Promise<void> {
+  const db = await getDb();
   for (const id of ids) {
-    db.update(giftcards).set({ deleted: true }).where(eq(giftcards.giftcardId, id)).run();
+    await db.update(giftcards).set({ deleted: true }).where(eq(giftcards.giftcardId, id));
   }
 }
-
-void asc;

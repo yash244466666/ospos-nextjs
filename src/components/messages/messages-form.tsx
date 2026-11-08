@@ -27,7 +27,6 @@ export default function MessagesForm() {
       <button type="submit" disabled={pending} className="bg-blue-600 text-white px-4 py-1 rounded disabled:opacity-50" data-testid="send-button">
         {pending ? "Sending…" : "Send"}
       </button>
-      <p className="text-xs text-gray-500">SMS provider is stubbed. Configure <code>msg_msg</code>/<code>msg_uid</code>/<code>msg_pwd</code>/<code>msg_src</code> in Config and wire a real provider.</p>
     </form>
   );
 }

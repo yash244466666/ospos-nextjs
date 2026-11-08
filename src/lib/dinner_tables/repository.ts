@@ -1,6 +1,7 @@
-import { eq, and, sql, like, desc, asc, isNull } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
-import { dinnerTables, sales } from "@/db/schema";
+import { and, asc, eq, like } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { withTransaction } from "@/lib/db/transaction";
+import { dinnerTables } from "@/db/schema";
 
 export interface DinnerTableRow {
   dinnerTableId: number;
@@ -9,81 +10,97 @@ export interface DinnerTableRow {
   deleted: boolean;
 }
 
-export function getAll(): DinnerTableRow[] {
-  return getDbSync().select().from(dinnerTables)
+export async function getAll(): Promise<DinnerTableRow[]> {
+  const db = await getDb();
+  return db
+    .select()
+    .from(dinnerTables)
     .where(eq(dinnerTables.deleted, false))
-    .orderBy(asc(dinnerTables.name))
-    .all() as DinnerTableRow[];
+    .orderBy(asc(dinnerTables.name));
 }
 
-export function getInfo(dinnerTableId: number): DinnerTableRow | null {
-  return (getDbSync().select().from(dinnerTables)
-    .where(eq(dinnerTables.dinnerTableId, dinnerTableId)).get() as DinnerTableRow) ?? null;
+export async function getInfo(dinnerTableId: number): Promise<DinnerTableRow | null> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(dinnerTables)
+    .where(eq(dinnerTables.dinnerTableId, dinnerTableId))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
-export function getName(dinnerTableId: number): string | null {
-  const row = getInfo(dinnerTableId);
-  return row?.name ?? null;
+export async function getName(dinnerTableId: number): Promise<string | null> {
+  return (await getInfo(dinnerTableId))?.name ?? null;
 }
 
 export function getEmptyRow(): DinnerTableRow {
   return { dinnerTableId: 0, name: "", status: 0, deleted: false };
 }
 
-export function isOccupied(dinnerTableId: number): boolean {
-  const row = getInfo(dinnerTableId);
-  if (!row) return false;
-  const db = getDbSync();
-  const sale = db.select({ id: sales.saleId }).from(sales)
-    .where(and(eq(sales.dinnerTableId, dinnerTableId), eq(sales.saleStatus, 1)))
-    .get();
-  return !!sale;
+/** Port of `Dinner_table::is_occupied()`: the `status` flag is authoritative. */
+export async function isOccupied(dinnerTableId: number): Promise<boolean> {
+  if (!dinnerTableId) return false;
+  const row = await getInfo(dinnerTableId);
+  return row?.status === 1;
 }
 
-export function saveValue(input: DinnerTableRow): number {
-  const db = getDbSync();
-  return db.transaction((tx) => {
+export async function saveValue(input: DinnerTableRow): Promise<number> {
+  return withTransaction(async (tx) => {
     if (input.dinnerTableId) {
-      tx.update(dinnerTables).set({ name: input.name, status: input.status })
-        .where(eq(dinnerTables.dinnerTableId, input.dinnerTableId)).run();
+      await tx
+        .update(dinnerTables)
+        .set({ name: input.name, status: input.status })
+        .where(eq(dinnerTables.dinnerTableId, input.dinnerTableId));
       return input.dinnerTableId;
     }
-    return tx.insert(dinnerTables).values({ name: input.name, status: input.status, deleted: false })
-      .returning({ id: dinnerTables.dinnerTableId }).get().id;
+    const inserted = await tx
+      .insert(dinnerTables)
+      .values({ name: input.name, status: input.status, deleted: false })
+      .returning({ id: dinnerTables.dinnerTableId });
+    const result = Array.isArray(inserted) ? inserted[0] : inserted;
+    return result.id;
   });
 }
 
-export function occupy(dinnerTableId: number): void {
-  getDbSync().update(dinnerTables).set({ status: 1 })
-    .where(eq(dinnerTables.dinnerTableId, dinnerTableId)).run();
+/** Delivery/takeaway (ids 1 and 2) are virtual tables and never occupied. */
+export async function occupy(dinnerTableId: number): Promise<void> {
+  if (dinnerTableId <= 2) return;
+  const db = await getDb();
+  await db
+    .update(dinnerTables)
+    .set({ status: 1 })
+    .where(eq(dinnerTables.dinnerTableId, dinnerTableId));
 }
 
-export function release(dinnerTableId: number): void {
-  getDbSync().update(dinnerTables).set({ status: 0 })
-    .where(eq(dinnerTables.dinnerTableId, dinnerTableId)).run();
+export async function release(dinnerTableId: number): Promise<void> {
+  if (dinnerTableId <= 2) return;
+  const db = await getDb();
+  await db
+    .update(dinnerTables)
+    .set({ status: 0 })
+    .where(eq(dinnerTables.dinnerTableId, dinnerTableId));
 }
 
-export function deleteTable(dinnerTableId: number): void {
-  getDbSync().update(dinnerTables).set({ deleted: true })
-    .where(eq(dinnerTables.dinnerTableId, dinnerTableId)).run();
+export async function deleteTable(dinnerTableId: number): Promise<void> {
+  const db = await getDb();
+  await db
+    .update(dinnerTables)
+    .set({ deleted: true })
+    .where(eq(dinnerTables.dinnerTableId, dinnerTableId));
 }
 
-export function swapTables(fromId: number, toId: number): void {
-  const db = getDbSync();
-  db.transaction((tx) => {
-    const from = tx.select().from(dinnerTables).where(eq(dinnerTables.dinnerTableId, fromId)).get();
-    if (!from) return;
-    tx.update(dinnerTables).set({ name: from.name, status: 0 })
-      .where(eq(dinnerTables.dinnerTableId, toId)).run();
-  });
+/** Port of `Dinner_table::swap_tables()`: release one table, occupy another. */
+export async function swapTables(fromId: number, toId: number): Promise<void> {
+  await release(fromId);
+  await occupy(toId);
 }
 
-export function search(term: string, limit = 25): DinnerTableRow[] {
-  return getDbSync().select().from(dinnerTables)
+export async function search(term: string, limit = 25): Promise<DinnerTableRow[]> {
+  const db = await getDb();
+  return db
+    .select()
+    .from(dinnerTables)
     .where(and(eq(dinnerTables.deleted, false), like(dinnerTables.name, `%${term}%`)))
-    .orderBy(asc(dinnerTables.name)).limit(limit).all() as DinnerTableRow[];
+    .orderBy(asc(dinnerTables.name))
+    .limit(limit);
 }
-
-void sql;
-void isNull;
-void desc;

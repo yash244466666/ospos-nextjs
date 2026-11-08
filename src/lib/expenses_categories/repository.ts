@@ -1,71 +1,120 @@
-import { eq, and, sql, like, desc, asc } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
+import { and, asc, eq, like, sql } from "drizzle-orm";
+import { getDb } from "@/lib/db";
 import { expenseCategories } from "@/db/schema";
 
 export interface ExpenseCategoryRow {
   expenseCategoryId: number;
   category: string;
-  description: string | null;
+  description: string;
   deleted: boolean;
 }
 
-export function getAll(): ExpenseCategoryRow[] {
-  return getDbSync().select().from(expenseCategories)
-    .where(eq(expenseCategories.deleted, false))
-    .orderBy(asc(expenseCategories.category))
-    .all() as ExpenseCategoryRow[];
+function mapRow(row: typeof expenseCategories.$inferSelect): ExpenseCategoryRow {
+  return {
+    expenseCategoryId: row.expenseCategoryId,
+    category: row.categoryName ?? "",
+    description: row.categoryDescription,
+    deleted: row.deleted,
+  };
 }
 
-export function getInfo(expenseCategoryId: number): ExpenseCategoryRow | null {
-  return (getDbSync().select().from(expenseCategories)
-    .where(eq(expenseCategories.expenseCategoryId, expenseCategoryId))
-    .get() as ExpenseCategoryRow) ?? null;
+export async function getAll(noDeleted = true): Promise<ExpenseCategoryRow[]> {
+  const db = await getDb();
+  const query = db.select().from(expenseCategories).orderBy(asc(expenseCategories.categoryName));
+  const rows = noDeleted
+    ? await query.where(eq(expenseCategories.deleted, false))
+    : await query;
+  return rows.map(mapRow);
 }
 
-export function getName(expenseCategoryId: number): string | null {
-  return getInfo(expenseCategoryId)?.category ?? null;
+export async function getInfo(expenseCategoryId: number): Promise<ExpenseCategoryRow | null> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(expenseCategories)
+    .where(
+      and(
+        eq(expenseCategories.expenseCategoryId, expenseCategoryId),
+        eq(expenseCategories.deleted, false),
+      ),
+    )
+    .limit(1);
+  return rows[0] ? mapRow(rows[0]) : null;
+}
+
+export async function getName(expenseCategoryId: number): Promise<string | null> {
+  return (await getInfo(expenseCategoryId))?.category ?? null;
 }
 
 export function getEmptyRow(): ExpenseCategoryRow {
-  return { expenseCategoryId: 0, category: "", description: null, deleted: false };
+  return { expenseCategoryId: 0, category: "", description: "", deleted: false };
 }
 
-export function saveValue(input: ExpenseCategoryRow): number {
-  const db = getDbSync();
-  return db.transaction((tx) => {
-    if (input.expenseCategoryId) {
-      tx.update(expenseCategories).set({
-        category: input.category, description: input.description,
-      }).where(eq(expenseCategories.expenseCategoryId, input.expenseCategoryId)).run();
-      return input.expenseCategoryId;
-    }
-    return tx.insert(expenseCategories).values({
-      category: input.category, description: input.description, deleted: false,
-    }).returning({ id: expenseCategories.expenseCategoryId }).get().id;
-  });
+export async function exists(expenseCategoryId: number): Promise<boolean> {
+  const db = await getDb();
+  const rows = await db
+    .select({ id: expenseCategories.expenseCategoryId })
+    .from(expenseCategories)
+    .where(eq(expenseCategories.expenseCategoryId, expenseCategoryId))
+    .limit(1);
+  return rows.length === 1;
 }
 
-export function deleteCategory(expenseCategoryId: number): void {
-  getDbSync().update(expenseCategories).set({ deleted: true })
-    .where(eq(expenseCategories.expenseCategoryId, expenseCategoryId)).run();
+export async function saveValue(input: ExpenseCategoryRow): Promise<number> {
+  const db = await getDb();
+  const values = {
+    categoryName: input.category,
+    categoryDescription: input.description,
+    deleted: false,
+  };
+  if (input.expenseCategoryId && (await exists(input.expenseCategoryId))) {
+    await db
+      .update(expenseCategories)
+      .set(values)
+      .where(eq(expenseCategories.expenseCategoryId, input.expenseCategoryId));
+    return input.expenseCategoryId;
+  }
+  const inserted = await db
+    .insert(expenseCategories)
+    .values(values)
+    .returning({ id: expenseCategories.expenseCategoryId });
+  const result = Array.isArray(inserted) ? inserted[0] : inserted;
+  return result.id;
 }
 
-export function search(term: string, limit = 25): ExpenseCategoryRow[] {
-  return getDbSync().select().from(expenseCategories)
-    .where(and(eq(expenseCategories.deleted, false), like(expenseCategories.category, `%${term}%`)))
-    .orderBy(asc(expenseCategories.category)).limit(limit).all() as ExpenseCategoryRow[];
+export async function deleteCategory(expenseCategoryId: number): Promise<void> {
+  const db = await getDb();
+  await db
+    .update(expenseCategories)
+    .set({ deleted: true })
+    .where(eq(expenseCategories.expenseCategoryId, expenseCategoryId));
 }
 
-export function getTotalRows(): number {
-  const r = getDbSync().select({ c: sql<number>`count(*)` }).from(expenseCategories)
-    .where(eq(expenseCategories.deleted, false)).get();
-  return r?.c ?? 0;
+export async function deleteList(ids: number[]): Promise<void> {
+  for (const id of ids) await deleteCategory(id);
 }
 
-export function deleteList(ids: number[]): void {
-  const db = getDbSync();
-  for (const id of ids) db.update(expenseCategories).set({ deleted: true })
-    .where(eq(expenseCategories.expenseCategoryId, id)).run();
+export async function search(term: string, limit = 25): Promise<ExpenseCategoryRow[]> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(expenseCategories)
+    .where(
+      and(
+        eq(expenseCategories.deleted, false),
+        like(expenseCategories.categoryName, `%${term}%`),
+      ),
+    )
+    .orderBy(asc(expenseCategories.categoryName))
+    .limit(limit);
+  return rows.map(mapRow);
 }
 
-void desc;
+export async function getTotalRows(): Promise<number> {
+  const db = await getDb();
+  const rows = await db
+    .select({ value: sql<number>`count(*)` })
+    .from(expenseCategories)
+    .where(eq(expenseCategories.deleted, false));
+  return Number(rows[0]?.value ?? 0);
+}

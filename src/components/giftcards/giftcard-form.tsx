@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { saveGiftcardAction } from "@/app/(secure)/giftcards/actions";
 
-interface Initial { giftcardId: number; giftcardNumber: string; value: number | null; personId: number | null; }
+interface Initial { giftcardId: number; giftcardNumber: string | null; value: string | null; personId: number | null; }
 
 export default function GiftcardForm({ initial, customers }: { initial: Initial | null; customers: { personId: number; label: string }[] }) {
   const [pending, start] = useTransition();
@@ -22,7 +22,7 @@ export default function GiftcardForm({ initial, customers }: { initial: Initial 
       </div>
       <div>
         <label className="block text-sm">Value</label>
-        <input type="number" step="0.01" name="value" defaultValue={String(initial?.value ?? 0)} className="border px-2 py-1 w-full" />
+        <input type="number" step="0.01" name="value" defaultValue={initial?.value ?? "0"} className="border px-2 py-1 w-full" />
       </div>
       <div>
         <label className="block text-sm">Customer</label>

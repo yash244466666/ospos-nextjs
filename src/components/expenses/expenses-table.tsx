@@ -3,11 +3,12 @@
 import { useTransition } from "react";
 import Link from "next/link";
 import { deleteExpenseAction } from "@/app/(secure)/expenses/actions";
+import { formatDb } from "@/lib/datetime";
 
 interface Row {
   expenseId: number;
-  expenseTime: number | null;
-  amount: number;
+  date: string | null;
+  amount: string;
   paymentType: string;
   expenseCategoryId: number | null;
   description: string | null;
@@ -32,9 +33,9 @@ export default function ExpensesTable({ rows, categories }: { rows: Row[]; categ
       <tbody>
         {rows.map((r) => (
           <tr key={r.expenseId} className="border-t">
-            <td className="p-2">{r.expenseTime ? new Date(r.expenseTime * 1000).toLocaleDateString() : ""}</td>
+            <td className="p-2">{r.date ? formatDb(r.date, "Y-m-d") : ""}</td>
             <td className="p-2">{catName(r.expenseCategoryId)}</td>
-            <td className="p-2 text-right">{r.amount.toFixed(2)}</td>
+            <td className="p-2 text-right">{Number(r.amount).toFixed(2)}</td>
             <td className="p-2">{r.paymentType}</td>
             <td className="p-2">{r.description ?? ""}</td>
             <td className="p-2 space-x-2">
