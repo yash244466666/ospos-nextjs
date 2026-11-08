@@ -1,29 +1,42 @@
-import { auth } from "@/lib/auth/options";
-import { getDbSync } from "@/lib/db";
-import { stockLocations, attributeDefinitions } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { requirePermissionApi } from "@/lib/auth/with-permission";
+import { getDb } from "@/lib/db";
+import { attributeDefinitions, stockLocations } from "@/db/schema";
+import { loadConfig } from "@/lib/config";
+
+/** Exact upstream `generate_import_items_csv`: mixed quoting, BOM, no trailing newline. */
+const HEADER =
+  'Id,Barcode,"Item Name",Category,"Supplier ID","Cost Price","Unit Price","Tax 1 Name","Tax 1 Percent","Tax 2 Name","Tax 2 Percent","Reorder Level",Description,"Allow Alt Description","Item has Serial Number",Image,HSN';
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user) return new Response("Unauthorized", { status: 401 });
+  const permission = await requirePermissionApi("items");
+  if (!permission.ok) {
+    return Response.json(permission.body, { status: permission.status });
+  }
+  await loadConfig();
+  const db = await getDb();
+  const locations = await db
+    .select()
+    .from(stockLocations)
+    .where(eq(stockLocations.deleted, false));
+  const definitions = await db
+    .select()
+    .from(attributeDefinitions)
+    .where(eq(attributeDefinitions.deleted, false));
 
-  const db = getDbSync();
-  const locations = db.select().from(stockLocations).where(eq(stockLocations.deleted, false)).all();
-  const attrs = db.select().from(attributeDefinitions).where(eq(attributeDefinitions.deleted, false)).all();
+  let csv = `﻿${HEADER}`;
+  for (const location of locations) {
+    csv += `,"location_${location.locationName ?? ""}"`;
+  }
+  for (const definition of definitions) {
+    if (definition.definitionName === "Category") continue;
+    csv += `,"attribute_${definition.definitionName}"`;
+  }
 
-  const headers = [
-    "Id", "Barcode", "Item Name", "Category", "Supplier ID", "Cost Price", "Unit Price",
-    "Tax 1 Name", "Tax 1 Percent", "Tax 2 Name", "Tax 2 Percent", "Reorder Level",
-    "Description", "Allow Alt Description", "Item has Serial Number", "Image", "HSN",
-  ];
-  for (const loc of locations) headers.push(`location_${loc.locationName}`);
-  for (const a of attrs) headers.push(`attribute_${a.definitionName}`);
-
-  const csv = "\uFEFF" + headers.map((h) => `"${h}"`).join(",") + "\n";
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="items_template.csv"`,
+      "Content-Disposition": 'attachment; filename="items_template.csv"',
     },
   });
 }

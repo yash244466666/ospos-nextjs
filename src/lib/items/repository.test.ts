@@ -1,51 +1,69 @@
-process.env.DATABASE_URL = ":memory:";
+import { describe, expect, it, beforeEach } from "vitest";
+import { getRawSqlite } from "@/lib/db/sqlite";
+import { resetTestDatabase } from "@/test/db";
+import { changeCostPrice, getItemById } from "./repository";
 
-import { describe, it, expect, beforeAll } from "vitest";
-import { getDbSync } from "@/lib/db";
-import { items, itemQuantities, stockLocations, people, employees } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { changeCostPrice } from "./repository";
+function sql(sqlText: string): void {
+  getRawSqlite().exec(sqlText);
+}
 
-describe("changeCostPrice", () => {
-  let itemId: number;
-  let locationId: number;
+async function seedItem(costPrice: string): Promise<void> {
+  sql(
+    `INSERT INTO ospos_people (person_id, first_name, last_name, phone_number, email, address_1, address_2, city, state, zip, country, comments)
+     VALUES (1, 'Test', 'User', '', '', '', '', '', '', '', '', '')`,
+  );
+  sql(
+    `INSERT INTO ospos_employees (person_id, username, password, hash_version) VALUES (1, 'test', 'x', 2)`,
+  );
+  sql(
+    `INSERT INTO ospos_stock_locations (location_id, location_name, deleted, is_default, sort_order) VALUES (1, 'stock', 0, 1, 0)`,
+  );
+  sql(
+    `INSERT INTO ospos_items (item_id, name, category, description, cost_price, unit_price, allow_alt_description, is_serialized)
+     VALUES (1, 'Widget', 'cat', '', ${costPrice}, '20', 0, 0)`,
+  );
+}
 
-  beforeAll(() => {
-    const db = getDbSync();
+beforeEach(() => {
+  resetTestDatabase();
+});
 
-    const person = db.insert(people).values({ firstName: "Test" }).returning().get();
-    db.insert(employees).values({ personId: person.personId, username: "test", password: "x", hashVersion: 2 }).run();
-
-    const loc = db.insert(stockLocations).values({ locationName: "Stock", deleted: false }).returning().get();
-    locationId = loc.locationId;
-
-    const item = db.insert(items).values({
-      name: "Widget",
-      costPrice: 10,
-      unitPrice: 20,
-      deleted: false,
-    }).returning().get();
-    itemId = item.itemId;
-
-    db.insert(itemQuantities).values({ itemId, locationId, quantity: 10 }).run();
+describe("Item::change_cost_price", () => {
+  it("computes weighted average before quantity update and stores 2dp", async () => {
+    await seedItem("10");
+    sql(
+      `INSERT INTO ospos_item_quantities (item_id, location_id, quantity) VALUES (1, 1, 10)`,
+    );
+    await changeCostPrice(1, "10", "20");
+    const row = await getItemById(1);
+    expect(row?.costPrice).toBe("15.00");
   });
 
-  it("computes weighted-average cost before quantity is updated", () => {
-    changeCostPrice(itemId, 10, 20, 10, 1);
-    const db = getDbSync();
-    const row = db.select().from(items).where(eq(items.itemId, itemId)).get();
-    // (10 old @ 10 + 10 new @ 20) / 20 = 15
-    expect(row?.costPrice).toBe(15);
+  it("truncates the division at bcscale then rounds to the column scale", async () => {
+    await seedItem("10");
+    sql(
+      `INSERT INTO ospos_item_quantities (item_id, location_id, quantity) VALUES (1, 1, 3)`,
+    );
+    // (3*10 + 7*11.1111)/10 = 10.77777 -> bc 10.7777 -> 2dp 10.78
+    await changeCostPrice(1, "7", "11.1111");
+    const row = await getItemById(1);
+    expect(row?.costPrice).toBe("10.78");
   });
 
-  it("rounds to 4 decimal places", () => {
-    const db = getDbSync();
-    db.update(items).set({ costPrice: 10 }).where(eq(items.itemId, itemId)).run();
-    db.update(itemQuantities).set({ quantity: 3 }).where(eq(itemQuantities.itemId, itemId)).run();
-
-    changeCostPrice(itemId, 7, 11.1111, 10, 1);
-    const row = db.select().from(items).where(eq(items.itemId, itemId)).get();
-    // (3*10 + 7*11.1111) / 10 = 10.77777 -> rounded 10.7778
-    expect(row?.costPrice).toBe(10.7778);
+  it("ignores deleted stock locations when summing old quantity", async () => {
+    await seedItem("10");
+    sql(
+      `INSERT INTO ospos_item_quantities (item_id, location_id, quantity) VALUES (1, 1, 3)`,
+    );
+    sql(
+      `INSERT INTO ospos_stock_locations (location_id, location_name, deleted, is_default, sort_order) VALUES (2, 'old', 1, 0, 1)`,
+    );
+    sql(
+      `INSERT INTO ospos_item_quantities (item_id, location_id, quantity) VALUES (1, 2, 100)`,
+    );
+    await changeCostPrice(1, "7", "20");
+    const row = await getItemById(1);
+    // (3*10 + 7*20)/10 = 17.00 (the deleted location is excluded)
+    expect(row?.costPrice).toBe("17.00");
   });
 });

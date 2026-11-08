@@ -2,21 +2,21 @@ import { requirePermission } from "@/lib/auth/with-permission";
 import { getStockLocations, getSuppliers } from "@/lib/items/repository";
 import { getConfigBool } from "@/lib/config";
 import { ItemForm } from "@/components/items/item-form";
-import { getDbSync } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { taxCategories, attributeDefinitions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export default async function NewItemPage() {
   await requirePermission("items");
-  const locations = getStockLocations();
-  const suppliers = getSuppliers();
+  const locations = await getStockLocations();
+  const suppliers = await getSuppliers();
   const includeHsn = getConfigBool("include_hsn", false);
   const useDestinationBasedTax = getConfigBool("use_destination_based_tax", false);
-  const db = getDbSync();
+  const db = await getDb();
   const taxCategoryRows = useDestinationBasedTax
-    ? db.select().from(taxCategories).where(eq(taxCategories.deleted, false)).all()
+    ? await db.select().from(taxCategories).where(eq(taxCategories.deleted, false))
     : [];
-  const attributeRows = db.select().from(attributeDefinitions).where(eq(attributeDefinitions.deleted, false)).all();
+  const attributeRows = await db.select().from(attributeDefinitions).where(eq(attributeDefinitions.deleted, false));
 
   return (
     <div>

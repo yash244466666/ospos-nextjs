@@ -1,82 +1,122 @@
 import { and, eq, sql } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
-import { inventory, itemQuantities, employees } from "@/db/schema";
-import { SALE_STATUS, STOCK_TYPE } from "@/lib/constants";
+import { getDb } from "@/lib/db";
+import { withTransaction } from "@/lib/db/transaction";
+import { inventory, itemQuantities } from "@/db/schema";
+import { bcMul, dec, toDbDecimal, type DecimalInput } from "@/lib/money";
+import { nowDb } from "@/lib/datetime";
+import { timezone } from "@/lib/config";
 
-export function update(comment: string, inventoryData: Array<{ transItems: number; transUser: number; transLocation: number; transInventory: number; transComment?: string }> | { transItems: number; transUser: number; transLocation: number; transInventory: number; transComment?: string }): void {
-  const db = getDbSync();
+interface InventoryDelta {
+  transItems: number;
+  transUser: number;
+  transLocation: number;
+  transInventory: DecimalInput;
+  transComment?: string;
+}
+
+/**
+ * Port of `Inventory::update()`: rewrites the comment (and delta) on the
+ * matching rows. Prefer `recordDelta()` for normal stock movement; inventory
+ * is an append-only ledger.
+ */
+export async function update(
+  comment: string,
+  inventoryData: InventoryDelta[] | InventoryDelta,
+): Promise<void> {
+  const db = await getDb();
   const arr = Array.isArray(inventoryData) ? inventoryData : [inventoryData];
   for (const inv of arr) {
-    db.update(inventory)
-      .set({ transComment: comment, transInventory: inv.transInventory })
-      .where(and(
-        eq(inventory.transItems, inv.transItems),
-        eq(inventory.transLocation, inv.transLocation),
-        eq(inventory.transComment, inv.transComment ?? comment)
-      ))
-      .run();
+    await db
+      .update(inventory)
+      .set({
+        transComment: comment,
+        transInventory: toDbDecimal(inv.transInventory, 3),
+      })
+      .where(
+        and(
+          eq(inventory.transItems, inv.transItems),
+          eq(inventory.transLocation, inv.transLocation),
+          eq(inventory.transComment, inv.transComment ?? comment),
+        ),
+      );
   }
 }
 
-export function getInventoryDataForItem(itemId: number, locationId?: number) {
-  const db = getDbSync();
+export async function getInventoryDataForItem(itemId: number, locationId?: number) {
+  const db = await getDb();
   const conditions = [eq(inventory.transItems, itemId)];
   if (locationId) conditions.push(eq(inventory.transLocation, locationId));
-  return db.select().from(inventory).where(and(...conditions)).orderBy(sql`${inventory.transDate} DESC`).all();
+  return db
+    .select()
+    .from(inventory)
+    .where(and(...conditions))
+    .orderBy(sql`${inventory.transDate} DESC`);
 }
 
-export function getInventorySum(itemId: number): { locationId: number; quantity: number }[] {
-  const db = getDbSync();
-  const rows = db
+export async function getInventorySum(
+  itemId: number,
+): Promise<{ locationId: number; quantity: string }[]> {
+  const db = await getDb();
+  const rows = await db
     .select({
       locationId: inventory.transLocation,
-      quantity: sql<number>`COALESCE(SUM(${inventory.transInventory}), 0)`,
+      quantity: sql<string>`COALESCE(SUM(${inventory.transInventory}), 0)`,
     })
     .from(inventory)
     .where(eq(inventory.transItems, itemId))
-    .groupBy(inventory.transLocation)
-    .all();
-  return rows.map((r) => ({ locationId: r.locationId ?? 0, quantity: r.quantity }));
+    .groupBy(inventory.transLocation);
+  return rows.map((r) => ({
+    locationId: r.locationId ?? 0,
+    quantity: toDbDecimal(r.quantity ?? "0", 3),
+  }));
 }
 
-export function resetQuantity(itemId: number, employeeId: number, comment = "Item is deleted"): void {
-  const db = getDbSync();
-  db.transaction((tx) => {
-    const sumByLoc = tx
+export async function resetQuantity(
+  itemId: number,
+  employeeId: number,
+  comment = "Item is deleted",
+): Promise<void> {
+  await withTransaction(async (tx) => {
+    const sumsByLocation = await tx
       .select({
         locationId: itemQuantities.locationId,
         quantity: itemQuantities.quantity,
       })
       .from(itemQuantities)
-      .where(eq(itemQuantities.itemId, itemId))
-      .all();
-    for (const r of sumByLoc) {
-      if (r.quantity > 0) {
-        tx.insert(inventory).values({
+      .where(eq(itemQuantities.itemId, itemId));
+    for (const r of sumsByLocation) {
+      if (dec(r.quantity).gt(0)) {
+        await tx.insert(inventory).values({
           transItems: itemId,
           transUser: employeeId,
           transLocation: r.locationId,
-          transInventory: -r.quantity,
+          transInventory: toDbDecimal(bcMul(r.quantity, "-1"), 3),
           transComment: comment,
-        }).run();
+        });
       }
     }
-    tx.update(itemQuantities).set({ quantity: 0 }).where(eq(itemQuantities.itemId, itemId)).run();
+    await tx
+      .update(itemQuantities)
+      .set({ quantity: "0" })
+      .where(eq(itemQuantities.itemId, itemId));
   });
 }
 
-export function recordDelta(itemId: number, locationId: number, employeeId: number, delta: number, comment: string, transDate?: number): void {
-  const db = getDbSync();
-  db.insert(inventory).values({
+export async function recordDelta(
+  itemId: number,
+  locationId: number,
+  employeeId: number,
+  delta: DecimalInput,
+  comment: string,
+  transDate?: string,
+): Promise<void> {
+  const db = await getDb();
+  await db.insert(inventory).values({
     transItems: itemId,
     transUser: employeeId,
     transLocation: locationId,
-    transInventory: delta,
+    transInventory: toDbDecimal(delta, 3),
     transComment: comment,
-    transDate: transDate ?? Math.floor(Date.now() / 1000),
-  }).run();
+    transDate: transDate ?? nowDb(timezone()),
+  });
 }
-
-void employees;
-void STOCK_TYPE;
-void SALE_STATUS;

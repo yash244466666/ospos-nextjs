@@ -10,8 +10,9 @@ import {
   suggestItems,
   getKitSearchSuggestions, getLowSellSuggestions,
   getCategorySuggestions, getLocationSuggestions,
-  getItemInfo, getInfoByIdOrNumber, changeCostPrice, updateItemNumber,
-  updateItemName, updateItemDescription, undeleteItem, getAllItems,
+  getInfoByIdOrNumber, changeCostPrice, updateItemNumber,
+  updateItemName, updateItemDescription, undeleteItem, getTotalRows,
+  type ItemRow,
 } from "@/lib/items/repository";
 import { getAll as getAllStockLocations } from "@/lib/stock_locations/repository";
 import { listDefinitions, getAttributesByItem, saveAttributeValue, copyAttributeLinks } from "@/lib/attributes/repository";
@@ -73,7 +74,7 @@ export async function saveItemAction(formData: FormData) {
   const pictureFile = formData.get("picture") as File | null;
   const itemIdField = formData.get("itemId") as string | null;
   const existingItemId = itemIdField ? parseInt(itemIdField, 10) : undefined;
-  const existingItem = existingItemId ? getItemById(existingItemId) : null;
+  const existingItem = existingItemId ? await getItemById(existingItemId) : null;
   const picFilename = await saveUploadedPicture(pictureFile, existingItem?.picFilename);
 
   let attributeValues: Record<number, string | null> | undefined;
@@ -93,16 +94,16 @@ export async function saveItemAction(formData: FormData) {
     return { error: parsed.error.flatten().fieldErrors };
   }
   const data = { ...parsed.data, attributeValues };
-  if (data.itemNumber && itemNumberExists(data.itemNumber, data.itemId)) {
+  if (data.itemNumber && (await itemNumberExists(data.itemNumber, data.itemId))) {
     return { error: { itemNumber: "Barcode already exists" } };
   }
-  const itemId = saveItem({
+  const itemId = await saveItem({
     ...data,
-    category: data.category ?? null,
-    description: data.description ?? null,
+    category: data.category ?? "",
+    description: data.description ?? "",
     itemNumber: data.itemNumber ?? null,
     packName: data.packName ?? null,
-    hsnCode: data.hsnCode ?? null,
+    hsnCode: data.hsnCode ?? "",
     supplierId: data.supplierId || null,
     taxCategoryId: data.taxCategoryId || null,
     picFilename,
@@ -113,7 +114,7 @@ export async function saveItemAction(formData: FormData) {
     for (const [definitionIdStr, value] of Object.entries(data.attributeValues)) {
       const definitionId = parseInt(definitionIdStr, 10);
       if (!definitionId) continue;
-      saveAttributeValue({ definitionId, itemId, attributeValue: value });
+      await saveAttributeValue({ definitionId, itemId, attributeValue: value });
     }
   }
 
@@ -124,7 +125,7 @@ export async function saveItemAction(formData: FormData) {
 export async function deleteItemAction(itemId: number) {
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
-  deleteItem(itemId, session.user.personId);
+  await deleteItem(itemId, session.user.personId);
   revalidatePath("/items");
   redirect("/items");
 }
@@ -132,18 +133,18 @@ export async function deleteItemAction(itemId: number) {
 export async function adjustInventoryAction(itemId: number, locationId: number, newQuantity: number) {
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
-  adjustInventory(itemId, locationId, newQuantity, session.user.personId);
+  await adjustInventory(itemId, locationId, newQuantity, session.user.personId);
   revalidatePath(`/items/${itemId}`);
 }
 
 export async function bulkUpdateAction(itemIds: number[], fields: Partial<{ category: string; supplierId: number; costPrice: number; unitPrice: number }>) {
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
-  bulkUpdate(itemIds, fields, session.user.personId);
+  await bulkUpdate(itemIds, fields, session.user.personId);
   revalidatePath("/items");
 }
 
-export async function searchItemsAction(filters: any) {
+export async function searchItemsAction(filters: Parameters<typeof searchItems>[0]) {
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
   return searchItems(filters);
@@ -164,7 +165,7 @@ export async function getItemByNumberOrIdAction(input: string) {
 export async function getItemInfoAction(input: string) {
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
-  return getItemInfo(parseInt(input, 10));
+  return getInfoByIdOrNumber(input);
 }
 
 export async function getInventoryAction(itemId: number, locationId?: number) {
@@ -212,28 +213,28 @@ export async function checkItemNumberAction(itemNumber: string, excludeId: numbe
 export async function changeItemNumberAction(itemId: number, itemNumber: string) {
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
-  updateItemNumber(itemId, itemNumber);
+  await updateItemNumber(itemId, itemNumber);
   revalidatePath(`/items/${itemId}`);
 }
 
 export async function changeItemNameAction(itemId: number, name: string) {
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
-  updateItemName(itemId, name);
+  await updateItemName(itemId, name);
   revalidatePath(`/items/${itemId}`);
 }
 
 export async function changeItemDescriptionAction(itemId: number, description: string) {
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
-  updateItemDescription(itemId, description);
+  await updateItemDescription(itemId, description);
   revalidatePath(`/items/${itemId}`);
 }
 
 export async function undeleteItemAction(itemId: number) {
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
-  undeleteItem(itemId);
+  await undeleteItem(itemId);
   revalidatePath("/items");
 }
 
@@ -241,8 +242,8 @@ export async function getAttributesAction(itemId: number) {
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
   return {
-    definitions: listDefinitions(),
-    values: getAttributesByItem(itemId),
+    definitions: await listDefinitions(),
+    values: await getAttributesByItem(itemId),
   };
 }
 
@@ -250,7 +251,7 @@ export async function saveAttributesAction(itemId: number, values: Record<number
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
   for (const [definitionId, value] of Object.entries(values)) {
-    saveAttributeValue({ definitionId: parseInt(definitionId, 10), itemId, attributeValue: value });
+    await saveAttributeValue({ definitionId: parseInt(definitionId, 10), itemId, attributeValue: value });
   }
   revalidatePath(`/items/${itemId}`);
 }
@@ -258,7 +259,7 @@ export async function saveAttributesAction(itemId: number, values: Record<number
 export async function generateBarcodesAction(itemIds: number[]) {
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
-  const items = itemIds.map((id) => getItemById(id)).filter((i): i is NonNullable<typeof i> => !!i);
+  const items = (await Promise.all(itemIds.map((id) => getItemById(id)))).filter((i): i is ItemRow => i !== null);
   return generateBarcodesPdf(items);
 }
 
@@ -275,5 +276,5 @@ export async function getTaxCategoriesAction() {
 }
 
 export async function getItemTotalRowsAction() {
-  return getAllItems().length;
+  return getTotalRows();
 }

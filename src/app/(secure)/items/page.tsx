@@ -24,12 +24,11 @@ export default async function ItemsPage({
     searchCustom: sp.search_custom === "1",
     isDeleted: sp.deleted === "1" ? true : sp.deleted === "0" ? false : undefined,
     temporary: sp.temporary === "1",
-    limit: 100,
   };
-  const { rows, total } = searchItems(filters);
-  const locations = getStockLocations();
+  const { rows, total } = await searchItems(filters, 100);
+  const locations = await getStockLocations();
   const useDestinationBasedTax = getConfigBool("use_destination_based_tax", false);
-  const definitions = getDefinitionsByFlags(1);
+  const definitions = await getDefinitionsByFlags(1);
 
   return (
     <div className="space-y-5">

@@ -1,17 +1,20 @@
 import { requirePermission } from "@/lib/auth/with-permission";
 import { getItemById, getInventoryHistory, getQuantitiesByLocation, getStockLocations } from "@/lib/items/repository";
 import { InventoryForm } from "@/components/items/inventory-form";
+import { formatDb } from "@/lib/datetime";
 import { notFound } from "next/navigation";
 
 export default async function InventoryPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("items");
   const { id } = await params;
   const itemId = parseInt(id, 10);
-  const item = getItemById(itemId);
+  const item = await getItemById(itemId);
   if (!item) notFound();
-  const locations = getStockLocations();
-  const quantities = getQuantitiesByLocation(itemId);
-  const history = getInventoryHistory(itemId);
+  const locations = await getStockLocations();
+  const quantities = Object.fromEntries(
+    Object.entries(await getQuantitiesByLocation(itemId)).map(([locationId, quantity]) => [locationId, Number(quantity)]),
+  );
+  const history = await getInventoryHistory(itemId);
 
   return (
     <div className="space-y-6">
@@ -34,10 +37,10 @@ export default async function InventoryPage({ params }: { params: Promise<{ id: 
             {history.map((h) => (
               <tr key={h.transId} className="border-t border-slate-100">
                 <td className="px-3 py-2">
-                  {h.transDate ? new Date(h.transDate * 1000).toLocaleString() : ""}
+                  {h.transDate ? formatDb(h.transDate, "Y-m-d H:i:s") : ""}
                 </td>
-                <td className={`px-3 py-2 text-right font-mono ${h.transInventory >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  {h.transInventory > 0 ? "+" : ""}{h.transInventory.toFixed(3)}
+                <td className={`px-3 py-2 text-right font-mono ${Number(h.transInventory) >= 0 ? "text-green-600" : "text-red-600"}`}>
+                  {Number(h.transInventory) > 0 ? "+" : ""}{Number(h.transInventory).toFixed(3)}
                 </td>
                 <td className="px-3 py-2">{h.transComment}</td>
               </tr>

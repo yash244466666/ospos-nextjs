@@ -13,7 +13,7 @@ export function ItemsTable({
   useDestinationBasedTax,
   definitions,
 }: {
-  rows: (ItemRow & { quantity?: number })[];
+  rows: ItemRow[];
   locations: { locationId: number; locationName: string }[];
   currentLocation?: number;
   useDestinationBasedTax: boolean;
@@ -143,10 +143,10 @@ export function ItemsTable({
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">{row.category ?? <span className="text-slate-400">—</span>}</td>
                 <td className="px-3 py-2 whitespace-nowrap">{row.companyName ?? <span className="text-slate-400">—</span>}</td>
-                <td className="px-3 py-2 text-right whitespace-nowrap">${row.costPrice.toFixed(2)}</td>
-                <td className="px-3 py-2 text-right whitespace-nowrap">${row.unitPrice.toFixed(2)}</td>
+                <td className="px-3 py-2 text-right whitespace-nowrap">${Number(row.costPrice).toFixed(2)}</td>
+                <td className="px-3 py-2 text-right whitespace-nowrap">${Number(row.unitPrice).toFixed(2)}</td>
                 <td className="px-3 py-2 text-right whitespace-nowrap">
-                  {row.quantity !== undefined ? row.quantity.toFixed(0) : "—"}
+                  {row.quantity !== undefined && row.quantity !== null ? Number(row.quantity).toFixed(0) : "—"}
                 </td>
                 <td className="px-3 py-2 text-right whitespace-nowrap">{row.reorderLevel}</td>
                 <td className="px-3 py-2 whitespace-nowrap">
@@ -154,7 +154,7 @@ export function ItemsTable({
                 </td>
                 {definitions.map((d) => (
                   <td key={d.definitionId} className="px-3 py-2 whitespace-nowrap">
-                    {row.attributeValues?.[d.definitionId] ?? <span className="text-slate-400">—</span>}
+                    {row.attributeMap?.[d.definitionId] ?? <span className="text-slate-400">—</span>}
                   </td>
                 ))}
                 <td className="px-3 py-2 whitespace-nowrap">

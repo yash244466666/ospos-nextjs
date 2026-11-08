@@ -1,40 +1,84 @@
-import { and, desc, eq, like, or, sql, ne, isNull } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
-import { items, itemsTaxes, itemQuantities, inventory, stockLocations, attributeDefinitions, attributeLinks, attributeValues, suppliers, people, taxCategories } from "@/db/schema";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  like,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { withTransaction } from "@/lib/db/transaction";
+import {
+  attributeDefinitions,
+  attributeLinks,
+  attributeValues,
+  inventory,
+  itemKitItems,
+  itemKits,
+  itemQuantities,
+  items,
+  itemsTaxes,
+  people,
+  stockLocations,
+  suppliers,
+  taxCategories,
+} from "@/db/schema";
 import { ITEM_TYPE, STOCK_TYPE } from "@/lib/constants";
+import { getConfigBool, loadConfig } from "@/lib/config";
+import {
+  bcAdd,
+  bcDiv,
+  bcMul,
+  bcSub,
+  dec,
+  phpRound,
+  toDbDecimal,
+  type DecimalInput,
+} from "@/lib/money";
+import { ROUNDING_MODE } from "@/lib/constants";
+import { formatDb } from "@/lib/datetime";
+import { dateFormat } from "@/lib/config";
 
 export interface ItemRow {
   itemId: number;
   name: string;
-  category: string | null;
+  category: string;
   supplierId: number | null;
   itemNumber: string | null;
-  description: string | null;
-  costPrice: number;
-  unitPrice: number;
-  reorderLevel: number;
-  receivingQuantity: number;
+  description: string;
+  costPrice: string;
+  unitPrice: string;
+  reorderLevel: string;
+  receivingQuantity: string;
   picFilename: string | null;
   allowAltDescription: boolean;
   isSerialized: boolean;
   stockType: number;
   itemType: number;
   taxCategoryId: number | null;
-  qtyPerPack: number;
+  qtyPerPack: string;
   packName: string | null;
   lowSellItemId: number | null;
-  hsnCode: string | null;
+  hsnCode: string;
   deleted: boolean;
-  quantity?: number;
+  quantity?: string;
   companyName?: string | null;
   taxPercents?: string;
   taxCategory?: string | null;
-  attributeValues?: Record<number, string | null>;
+  attributeValues?: string;
+  attributeDtvalues?: string;
+  attributeDvalues?: string;
+  attributeMap?: Record<number, string | null>;
 }
 
 export interface ItemSearchFilters {
   searchText?: string;
   stockLocationId?: number;
+  selectedLocationId?: number;
   emptyUpc?: boolean;
   lowInventory?: boolean;
   isSerialized?: boolean;
@@ -42,585 +86,895 @@ export interface ItemSearchFilters {
   searchCustom?: boolean;
   isDeleted?: boolean;
   temporary?: boolean;
-  limit?: number;
-  offset?: number;
+  startDate?: string;
+  endDate?: string;
 }
 
-function isItemId(s: string): boolean {
-  return /^\d+$/.test(s) && !s.startsWith("0");
+const isItemId = (value: string): boolean => /^\d+$/.test(value) && !value.startsWith("0");
+
+function rowToItem(row: typeof items.$inferSelect, extra: Partial<ItemRow> = {}): ItemRow {
+  return {
+    ...row,
+    costPrice: toDbDecimal(row.costPrice, 2),
+    unitPrice: toDbDecimal(row.unitPrice, 2),
+    reorderLevel: toDbDecimal(row.reorderLevel, 3),
+    receivingQuantity: toDbDecimal(row.receivingQuantity, 3),
+    qtyPerPack: toDbDecimal(row.qtyPerPack, 3),
+    ...extra,
+  };
 }
 
-export function searchItems(filters: ItemSearchFilters): { rows: ItemRow[]; total: number } {
-  const db = getDbSync();
-  const conditions: ReturnType<typeof eq>[] = [];
+export async function getItemById(itemId: number): Promise<ItemRow | null> {
+  const db = await getDb();
+  const rows = await db.select().from(items).where(eq(items.itemId, itemId)).limit(1);
+  return rows[0] ? rowToItem(rows[0]) : null;
+}
+
+export async function getItemByNumber(itemNumber: string): Promise<ItemRow | null> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(items)
+    .where(eq(items.itemNumber, itemNumber))
+    .limit(1);
+  return rows[0] ? rowToItem(rows[0]) : null;
+}
+
+/** `Item::get_info_by_id_or_number` — item_number first, then numeric id (no leading zero). */
+export async function getInfoByIdOrNumber(
+  input: string,
+  includeDeleted = true,
+): Promise<ItemRow | null> {
+  const db = await getDb();
+  const condition = isItemId(input)
+    ? or(eq(items.itemNumber, input), eq(items.itemId, Number(input)))
+    : eq(items.itemNumber, input);
+  const where = includeDeleted ? condition : and(condition, eq(items.deleted, false));
+  const rows = await db.select().from(items).where(where).limit(1);
+  return rows[0] ? rowToItem(rows[0]) : null;
+}
+
+export async function getItemIdByNumber(
+  itemNumber: string,
+  ignoreDeleted = false,
+  deleted = false,
+): Promise<number | null> {
+  const db = await getDb();
+  const condition = or(eq(items.itemNumber, itemNumber), eq(items.itemId, Number(itemNumber)));
+  const where = ignoreDeleted ? condition : and(condition, eq(items.deleted, deleted));
+  const rows = await db.select({ itemId: items.itemId }).from(items).where(where).limit(1);
+  return rows[0]?.itemId ?? null;
+}
+
+export async function itemNumberExists(
+  itemNumber: string,
+  excludeItemId?: number,
+): Promise<boolean> {
+  if (!itemNumber) return false;
+  if (getConfigBool("allow_duplicate_barcodes", false)) return false;
+  const db = await getDb();
+  const rows = await db
+    .select({ itemId: items.itemId })
+    .from(items)
+    .where(eq(items.itemNumber, itemNumber));
+  return rows.some((row) => row.itemId !== excludeItemId);
+}
+
+export async function getItemTaxes(
+  itemId: number,
+): Promise<{ name: string; percent: string }[]> {
+  const db = await getDb();
+  return db
+    .select({ name: itemsTaxes.name, percent: itemsTaxes.percent })
+    .from(itemsTaxes)
+    .where(eq(itemsTaxes.itemId, itemId));
+}
+
+export async function getQuantitiesByLocation(
+  itemId: number,
+): Promise<Record<number, string>> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(itemQuantities)
+    .where(eq(itemQuantities.itemId, itemId));
+  return Object.fromEntries(rows.map((row) => [row.locationId, row.quantity]));
+}
+
+export const getItemQuantities = getQuantitiesByLocation;
+
+export async function getStockLocations(): Promise<
+  { locationId: number; locationName: string }[]
+> {
+  const db = await getDb();
+  const rows = await db
+    .select({
+      locationId: stockLocations.locationId,
+      locationName: stockLocations.locationName,
+    })
+    .from(stockLocations)
+    .where(eq(stockLocations.deleted, false))
+    .orderBy(asc(stockLocations.sortOrder));
+  return rows.map((row) => ({
+    locationId: row.locationId,
+    locationName: row.locationName ?? "",
+  }));
+}
+
+export async function getStockLocationName(locationId: number): Promise<string> {
+  const db = await getDb();
+  const rows = await db
+    .select({ name: stockLocations.locationName })
+    .from(stockLocations)
+    .where(eq(stockLocations.locationId, locationId))
+    .limit(1);
+  return rows[0]?.name ?? "";
+}
+
+export async function getSuppliers(): Promise<
+  { personId: number; companyName: string }[]
+> {
+  const db = await getDb();
+  return db
+    .select({ personId: suppliers.personId, companyName: suppliers.companyName })
+    .from(suppliers)
+    .where(eq(suppliers.deleted, false));
+}
+
+export async function getInventoryHistory(
+  itemId: number,
+  locationId?: number,
+  limit = 50,
+) {
+  const db = await getDb();
+  const conditions = [eq(inventory.transItems, itemId)];
+  if (locationId) conditions.push(eq(inventory.transLocation, locationId));
+  return db
+    .select()
+    .from(inventory)
+    .where(and(...conditions))
+    .orderBy(desc(inventory.transDate))
+    .limit(limit);
+}
+
+function attributeSearchClause(search: string) {
+  const pattern = /([A-Za-z][A-Za-z0-9 _-]*?)\s*:\s*([0-9]+,[0-9]+|[^\s,]+)(?:\s*,\s*|\s+(?:AND|OR)\s+)?/gu;
+  const clauses = [];
+  for (const match of search.matchAll(pattern)) {
+    const name = match[1].trim().toLowerCase();
+    const value = match[2].trim();
+    clauses.push(sql`${items.itemId} IN (
+      SELECT al.item_id FROM ospos_attribute_links al
+      JOIN ospos_attribute_values av ON av.attribute_id = al.attribute_id
+      JOIN ospos_attribute_definitions ad ON ad.definition_id = al.definition_id
+      WHERE al.item_id IS NOT NULL AND al.sale_id IS NULL AND al.receiving_id IS NULL
+        AND ad.deleted = 0 AND LOWER(ad.definition_name) = ${name}
+        AND (
+          av.attribute_value = ${value}
+          OR CAST(av.attribute_decimal AS TEXT) = ${value}
+          OR av.attribute_date = ${value}
+        )
+    )`);
+  }
+  return clauses;
+}
+
+export async function searchItems(
+  filters: ItemSearchFilters,
+  rowLimit = 25,
+  limitFrom = 0,
+  sort = "name",
+  order: "asc" | "desc" = "asc",
+  countOnly = false,
+): Promise<{ rows: ItemRow[]; total: number }> {
+  await loadConfig();
+  const db = await getDb();
+  const conditions = [
+    eq(items.deleted, filters.isDeleted ?? false),
+  ];
 
   if (filters.searchText) {
     const term = `%${filters.searchText}%`;
-    conditions.push(
-      or(
-        like(items.name, term),
-        like(items.itemNumber, term),
-        like(items.category, term),
-        like(items.description, term),
-        isItemId(filters.searchText) ? eq(items.itemId, parseInt(filters.searchText, 10)) : sql`false`
-      )!
-    );
+    const clauses = [
+      like(items.name, term),
+      like(items.itemNumber, term),
+      like(items.category, term),
+      like(items.description, term),
+      like(suppliers.companyName, term),
+    ];
+    if (isItemId(filters.searchText)) clauses.push(eq(items.itemId, Number(filters.searchText)));
+    conditions.push(or(...clauses)!);
+    conditions.push(...attributeSearchClause(filters.searchText));
   }
-  if (filters.emptyUpc) conditions.push(isNull(items.itemNumber));
+  if (filters.emptyUpc) {
+    conditions.push(or(isNull(items.itemNumber), eq(items.itemNumber, ""))!);
+  }
   if (filters.isSerialized) conditions.push(eq(items.isSerialized, true));
-  if (filters.noDescription) conditions.push(isNull(items.description));
-  if (typeof filters.isDeleted !== "undefined") {
-    conditions.push(eq(items.deleted, filters.isDeleted));
-  } else {
-    conditions.push(eq(items.deleted, false));
+  if (filters.noDescription) {
+    conditions.push(or(isNull(items.description), eq(items.description, ""))!);
   }
   if (filters.temporary) conditions.push(eq(items.itemType, ITEM_TYPE.ITEM_TEMP));
 
-  const where = conditions.length ? and(...conditions) : undefined;
+  const locationId = filters.stockLocationId ?? filters.selectedLocationId;
+  if (locationId) {
+    conditions.push(
+      sql`${items.itemId} IN (SELECT item_id FROM ospos_item_quantities WHERE location_id = ${locationId})`,
+    );
+  }
+  if (filters.lowInventory && locationId) {
+    conditions.push(
+      sql`${items.itemId} IN (
+        SELECT iq.item_id FROM ospos_item_quantities iq
+        JOIN ospos_items i ON i.item_id = iq.item_id
+        WHERE iq.location_id = ${locationId} AND iq.quantity <= i.reorder_level
+      )`,
+    );
+  }
+  if (filters.startDate && filters.endDate && locationId) {
+    const start = `${decodeURIComponent(filters.startDate)} 00:00:00`;
+    const end = `${decodeURIComponent(filters.endDate)} 23:59:59`;
+    conditions.push(
+      sql`${items.itemId} IN (
+        SELECT DISTINCT trans_items FROM ospos_inventory
+        WHERE trans_location = ${locationId}
+          AND trans_date BETWEEN ${start} AND ${end}
+      )`,
+    );
+  }
 
-  const rows = db
+  const where = and(...conditions);
+  const countRows = await db
+    .select({ value: sql<number>`count(DISTINCT ${items.itemId})` })
+    .from(items)
+    .leftJoin(suppliers, eq(suppliers.personId, items.supplierId))
+    .where(where);
+  const total = Number(countRows[0]?.value ?? 0);
+  if (countOnly) return { rows: [], total };
+
+  const sortColumn = (() => {
+    switch (sort) {
+      case "item_id": return items.itemId;
+      case "item_number": return items.itemNumber;
+      case "category": return items.category;
+      case "cost_price": return items.costPrice;
+      case "unit_price": return items.unitPrice;
+      case "reorder_level": return items.reorderLevel;
+      case "quantity": return itemQuantities.quantity;
+      default: return items.name;
+    }
+  })();
+
+  const query = db
     .select({
-      itemId: items.itemId,
-      name: items.name,
-      category: items.category,
-      supplierId: items.supplierId,
-      itemNumber: items.itemNumber,
-      description: items.description,
-      costPrice: items.costPrice,
-      unitPrice: items.unitPrice,
-      reorderLevel: items.reorderLevel,
-      receivingQuantity: items.receivingQuantity,
-      picFilename: items.picFilename,
-      allowAltDescription: items.allowAltDescription,
-      isSerialized: items.isSerialized,
-      stockType: items.stockType,
-      itemType: items.itemType,
-      taxCategoryId: items.taxCategoryId,
-      qtyPerPack: items.qtyPerPack,
-      packName: items.packName,
-      lowSellItemId: items.lowSellItemId,
-      hsnCode: items.hsnCode,
-      deleted: items.deleted,
+      item: items,
       companyName: suppliers.companyName,
       taxCategory: taxCategories.taxCategory,
+      quantity: locationId ? itemQuantities.quantity : sql<string>`NULL`,
     })
     .from(items)
     .leftJoin(suppliers, eq(suppliers.personId, items.supplierId))
     .leftJoin(taxCategories, eq(taxCategories.taxCategoryId, items.taxCategoryId))
+    .leftJoin(
+      itemQuantities,
+      locationId
+        ? and(
+            eq(itemQuantities.itemId, items.itemId),
+            eq(itemQuantities.locationId, locationId),
+          )
+        : sql`1 = 0`,
+    )
     .where(where)
-    .orderBy(desc(items.itemId))
-    .limit(filters.limit ?? 25)
-    .offset(filters.offset ?? 0)
-    .all();
+    .orderBy(order === "asc" ? asc(sortColumn) : desc(sortColumn))
+    .limit(rowLimit)
+    .offset(limitFrom);
 
-  let quantityMap: Record<number, number> = {};
-  if (filters.stockLocationId && filters.stockLocationId > 0 && rows.length > 0) {
-    const ids = rows.map((r) => r.itemId);
-    const qrows = db
+  const rows = await query;
+  const itemIds = rows.map((row) => row.item.itemId);
+  const taxMap = new Map<number, string[]>();
+  const attributeMap = new Map<number, { values: string; dates: string; decimals: string }>();
+  const attrRowsByItem = new Map<number, { definitionId: number; attributeValue: string | null }[]>();
+  if (itemIds.length > 0) {
+    const taxRows = await db
       .select()
-      .from(itemQuantities)
+      .from(itemsTaxes)
+      .where(inArray(itemsTaxes.itemId, itemIds));
+    for (const tax of taxRows) {
+      const list = taxMap.get(tax.itemId) ?? [];
+      list.push(`${Number(tax.percent).toFixed(2)}%`);
+      taxMap.set(tax.itemId, list);
+    }
+    const attrRows = await db
+      .select({
+        itemId: attributeLinks.itemId,
+        definitionId: attributeLinks.definitionId,
+        attributeValue: attributeValues.attributeValue,
+        attributeDate: attributeValues.attributeDate,
+        attributeDecimal: attributeValues.attributeDecimal,
+        definitionType: attributeDefinitions.definitionType,
+      })
+      .from(attributeLinks)
+      .innerJoin(attributeValues, eq(attributeValues.attributeId, attributeLinks.attributeId))
+      .innerJoin(
+        attributeDefinitions,
+        eq(attributeDefinitions.definitionId, attributeLinks.definitionId),
+      )
       .where(
         and(
-          eq(itemQuantities.locationId, filters.stockLocationId),
-          sql`${itemQuantities.itemId} IN (${ids.join(",")})`
-        )
-      )
-      .all();
-    quantityMap = Object.fromEntries(qrows.map((q) => [q.itemId, q.quantity]));
-  }
-
-  const taxMap: Record<number, string> = {};
-  const attributeMap: Record<number, Record<number, string | null>> = {};
-  if (rows.length > 0) {
-    const ids = rows.map((r) => r.itemId);
-
-    const taxRows = db
-      .select({ itemId: itemsTaxes.itemId, name: itemsTaxes.name, percent: itemsTaxes.percent })
-      .from(itemsTaxes)
-      .where(sql`${itemsTaxes.itemId} IN (${ids.join(",")})`)
-      .orderBy(itemsTaxes.name)
-      .all();
-    const taxGroups = new Map<number, string[]>();
-    for (const t of taxRows) {
-      const list = taxGroups.get(t.itemId) ?? [];
-      list.push(`${t.percent.toFixed ? t.percent.toFixed(2) : t.percent}%`);
-      taxGroups.set(t.itemId, list);
-    }
-    for (const id of ids) {
-      const list = taxGroups.get(id);
-      taxMap[id] = list ? list.join(", ") : "-";
-    }
-
-    const definitions = db
-      .select({ definitionId: attributeDefinitions.definitionId, definitionName: attributeDefinitions.definitionName })
-      .from(attributeDefinitions)
-      .where(and(eq(attributeDefinitions.deleted, false), sql`(${attributeDefinitions.definitionFlags} & 1) = 1`))
-      .all();
-    if (definitions.length > 0) {
-      const defIds = definitions.map((d) => d.definitionId);
-      const attrRows = db
-        .select({
-          itemId: attributeLinks.itemId,
-          definitionId: attributeLinks.definitionId,
-          attributeValue: attributeValues.attributeValue,
-        })
-        .from(attributeLinks)
-        .innerJoin(attributeValues, eq(attributeValues.attributeId, attributeLinks.attributeId))
-        .where(
-          and(
-            sql`${attributeLinks.itemId} IN (${ids.join(",")})`,
-            sql`${attributeLinks.definitionId} IN (${defIds.join(",")})`,
-            sql`${attributeLinks.saleId} IS NULL`,
-            sql`${attributeLinks.receivingId} IS NULL`
-          )
-        )
-        .all();
-      for (const id of ids) attributeMap[id] = {};
-      for (const a of attrRows) {
-        if (!a.itemId) continue;
-        const map = attributeMap[a.itemId] ?? {};
-        map[a.definitionId] = a.attributeValue;
-        attributeMap[a.itemId] = map;
+          inArray(attributeLinks.itemId, itemIds),
+          isNull(attributeLinks.saleId),
+          isNull(attributeLinks.receivingId),
+        ),
+      );
+    for (const attr of attrRows) {
+      if (attr.itemId === null) continue;
+      const list = attrRowsByItem.get(attr.itemId) ?? [];
+      list.push({ definitionId: attr.definitionId, attributeValue: attr.attributeValue });
+      attrRowsByItem.set(attr.itemId, list);
+      const entry = attributeMap.get(attr.itemId) ?? { values: "", dates: "", decimals: "" };
+      if (attr.attributeValue !== null) {
+        entry.values = entry.values ? `${entry.values}|${attr.attributeValue}` : attr.attributeValue;
       }
+      if (attr.attributeDate !== null) {
+        const formatted = formatDb(attr.attributeDate, dateFormat());
+        entry.dates = entry.dates ? `${entry.dates}|${formatted}` : formatted;
+      }
+      if (attr.attributeDecimal !== null) {
+        entry.decimals = entry.decimals ? `${entry.decimals}|${attr.attributeDecimal}` : attr.attributeDecimal;
+      }
+      attributeMap.set(attr.itemId, entry);
     }
   }
-
-  const totalRow = db
-    .select({ c: sql<number>`count(*)` })
-    .from(items)
-    .where(where)
-    .get();
 
   return {
-    rows: rows.map((r) => ({
-      ...r,
-      quantity: quantityMap[r.itemId] ?? 0,
-      taxPercents: taxMap[r.itemId] ?? "-",
-      attributeValues: attributeMap[r.itemId] ?? {},
-    })) as ItemRow[],
-    total: totalRow?.c ?? 0,
+    total,
+    rows: rows.map((row) => rowToItem(row.item, {
+      companyName: row.companyName ?? null,
+      taxCategory: row.taxCategory ?? null,
+      quantity: row.quantity ?? "0",
+      taxPercents: (taxMap.get(row.item.itemId) ?? ["-"]).join(", "),
+      attributeValues: attributeMap.get(row.item.itemId)?.values ?? "",
+      attributeMap: Object.fromEntries(
+        (attrRowsByItem.get(row.item.itemId) ?? []).map((attribute) => [
+          attribute.definitionId,
+          attribute.attributeValue,
+        ]),
+      ),
+      attributeDtvalues: attributeMap.get(row.item.itemId)?.dates ?? "",
+      attributeDvalues: attributeMap.get(row.item.itemId)?.decimals ?? "",
+    })),
   };
 }
 
-export function getItemById(itemId: number): ItemRow | null {
-  const db = getDbSync();
-  const row = db.select().from(items).where(eq(items.itemId, itemId)).get();
-  return (row as ItemRow) ?? null;
-}
-
-export function getItemByNumber(itemNumber: string): ItemRow | null {
-  const db = getDbSync();
-  const row = db.select().from(items).where(eq(items.itemNumber, itemNumber)).get();
-  return (row as ItemRow) ?? null;
-}
-
-export function getItemByIdOrNumber(input: string): ItemRow | null {
-  if (isItemId(input)) return getItemById(parseInt(input, 10));
-  return getItemByNumber(input);
-}
-
-export interface ItemTaxRow { name: string; percent: number; }
-
-export function getItemTaxes(itemId: number): ItemTaxRow[] {
-  const db = getDbSync();
-  return db.select({ name: itemsTaxes.name, percent: itemsTaxes.percent })
-    .from(itemsTaxes)
-    .where(eq(itemsTaxes.itemId, itemId))
-    .all();
-}
-
-export function getStockLocations(): { locationId: number; locationName: string }[] {
-  const db = getDbSync();
-  return db.select({
-    locationId: stockLocations.locationId,
-    locationName: stockLocations.locationName,
-  })
-    .from(stockLocations)
-    .where(eq(stockLocations.deleted, false))
-    .all();
-}
-
-export function getQuantitiesByLocation(itemId: number): Record<number, number> {
-  const db = getDbSync();
-  const rows = db.select().from(itemQuantities).where(eq(itemQuantities.itemId, itemId)).all();
-  return Object.fromEntries(rows.map((r) => [r.locationId, r.quantity]));
-}
-
-export function getSuppliers(): { personId: number; companyName: string | null }[] {
-  const db = getDbSync();
-  return db.select({ personId: suppliers.personId, companyName: suppliers.companyName })
-    .from(suppliers)
-    .where(eq(suppliers.deleted, false))
-    .all();
-}
-
-export function getInventoryHistory(itemId: number, locationId?: number, limit = 50) {
-  const db = getDbSync();
-  const conditions = [eq(inventory.transItems, itemId)];
-  if (locationId) conditions.push(eq(inventory.transLocation, locationId));
-  return db.select()
-    .from(inventory)
-    .where(and(...conditions))
-    .orderBy(desc(inventory.transDate))
-    .limit(limit)
-    .all();
+export async function getAllItems(
+  stockLocationId?: number,
+  limit = 100,
+  offset = 0,
+): Promise<ItemRow[]> {
+  return (await searchItems({ stockLocationId }, limit, offset)).rows;
 }
 
 export interface SaveItemInput {
   itemId?: number;
   name: string;
-  category: string | null;
+  category: string;
   supplierId: number | null;
   itemNumber: string | null;
-  description: string | null;
-  costPrice: number;
-  unitPrice: number;
-  reorderLevel: number;
-  receivingQuantity: number;
+  description: string;
+  costPrice: DecimalInput;
+  unitPrice: DecimalInput;
+  reorderLevel: DecimalInput;
+  receivingQuantity: DecimalInput;
   allowAltDescription: boolean;
   isSerialized: boolean;
   stockType: number;
   itemType: number;
   taxCategoryId: number | null;
-  qtyPerPack: number;
+  qtyPerPack: DecimalInput;
   packName: string | null;
-  hsnCode: string | null;
+  hsnCode: string;
+  lowSellItemId?: number | null;
+  deleted?: boolean;
   picFilename?: string | null;
-  taxes?: ItemTaxRow[];
-  quantities?: { locationId: number; quantity: number }[];
+  taxes?: { name: string; percent: DecimalInput }[];
+  quantities?: { locationId: number; quantity: DecimalInput }[];
   employeeId: number;
 }
 
-export function saveItem(input: SaveItemInput): number {
-  const db = getDbSync();
+export async function saveItem(input: SaveItemInput): Promise<number> {
   const isTemp = input.itemType === ITEM_TYPE.ITEM_TEMP;
-  const data: typeof items.$inferInsert = {
+  const values = {
     name: input.name,
     category: input.category,
     supplierId: input.supplierId,
     itemNumber: input.itemNumber,
     description: input.description,
-    costPrice: input.costPrice,
-    unitPrice: input.unitPrice,
-    reorderLevel: isTemp ? 0 : input.reorderLevel,
-    receivingQuantity: input.receivingQuantity,
+    costPrice: toDbDecimal(input.costPrice, 2),
+    unitPrice: toDbDecimal(input.unitPrice, 2),
+    reorderLevel: toDbDecimal(isTemp ? 0 : input.reorderLevel, 3),
+    receivingQuantity: toDbDecimal(isTemp ? 0 : input.receivingQuantity, 3),
     allowAltDescription: input.allowAltDescription,
     isSerialized: input.isSerialized,
     stockType: isTemp ? STOCK_TYPE.HAS_NO_STOCK : input.stockType,
     itemType: input.itemType,
     taxCategoryId: input.taxCategoryId,
-    qtyPerPack: input.qtyPerPack,
+    qtyPerPack: toDbDecimal(input.qtyPerPack, 3),
     packName: input.packName,
     hsnCode: input.hsnCode,
-    picFilename: input.picFilename,
-    deleted: false,
+    deleted: input.deleted ?? false,
+    lowSellItemId: input.lowSellItemId ?? input.itemId ?? null,
+    ...(input.picFilename !== undefined ? { picFilename: input.picFilename } : {}),
   };
 
-  return db.transaction((tx) => {
+  return withTransaction(async (tx) => {
     let itemId = input.itemId;
-    if (itemId) {
-      tx.update(items).set(data).where(eq(items.itemId, itemId)).run();
+    if (itemId && itemId > 0) {
+      await tx.update(items).set(values).where(eq(items.itemId, itemId));
     } else {
-      const inserted = tx.insert(items).values(data).returning({ id: items.itemId }).get();
-      itemId = inserted.id;
-      tx.update(items).set({ lowSellItemId: itemId }).where(eq(items.itemId, itemId)).run();
+      const inserted = await tx.insert(items).values(values).returning({ id: items.itemId });
+      const result = Array.isArray(inserted) ? inserted[0] : inserted;
+      itemId = result.id;
+      await tx
+        .update(items)
+        .set({ lowSellItemId: itemId })
+        .where(eq(items.itemId, itemId));
     }
 
-    if (input.taxes) {
-      tx.delete(itemsTaxes).where(eq(itemsTaxes.itemId, itemId)).run();
-      for (const t of input.taxes.slice(0, 2)) {
-        if (t.name && t.percent) {
-          tx.insert(itemsTaxes).values({
+    if (input.taxes && !getConfigBool("use_destination_based_tax", false)) {
+      await tx.delete(itemsTaxes).where(eq(itemsTaxes.itemId, itemId));
+      for (const tax of input.taxes.slice(0, 2)) {
+        if (tax.name && !dec(tax.percent).isZero()) {
+          await tx.insert(itemsTaxes).values({
             itemId,
-            name: t.name,
-            percent: t.percent,
-          }).run();
+            name: tax.name,
+            percent: toDbDecimal(tax.percent, 3),
+          });
         }
       }
     }
 
     if (input.quantities) {
-      for (const q of input.quantities) {
-        const existing = tx.select()
+      for (const quantity of input.quantities) {
+        const existing = await tx
+          .select()
           .from(itemQuantities)
-          .where(and(
-            eq(itemQuantities.itemId, itemId!),
-            eq(itemQuantities.locationId, q.locationId)
-          ))
-          .get();
-        const oldQty = existing?.quantity ?? 0;
-        if (existing) {
-          tx.update(itemQuantities)
-            .set({ quantity: q.quantity })
-            .where(and(
-              eq(itemQuantities.itemId, itemId!),
-              eq(itemQuantities.locationId, q.locationId)
-            ))
-            .run();
-        } else {
-          tx.insert(itemQuantities).values({
-            itemId: itemId!,
-            locationId: q.locationId,
-            quantity: q.quantity,
-          }).run();
+          .where(
+            and(
+              eq(itemQuantities.itemId, itemId),
+              eq(itemQuantities.locationId, quantity.locationId),
+            ),
+          )
+          .limit(1);
+        const oldQuantity = existing[0]?.quantity ?? "0";
+        const newQuantity = toDbDecimal(quantity.quantity, 3);
+        if (existing.length === 0) {
+          await tx.insert(itemQuantities).values({
+            itemId,
+            locationId: quantity.locationId,
+            quantity: newQuantity,
+          });
+        } else if (toDbDecimal(oldQuantity, 3) !== newQuantity) {
+          await tx
+            .update(itemQuantities)
+            .set({ quantity: newQuantity })
+            .where(
+              and(
+                eq(itemQuantities.itemId, itemId),
+                eq(itemQuantities.locationId, quantity.locationId),
+              ),
+            );
         }
-        const delta = q.quantity - oldQty;
-        if (delta !== 0) {
-          tx.insert(inventory).values({
-            transItems: itemId!,
+        if (toDbDecimal(oldQuantity, 3) !== newQuantity) {
+          await tx.insert(inventory).values({
+            transItems: itemId,
             transUser: input.employeeId,
-            transLocation: q.locationId,
-            transInventory: delta,
+            transLocation: quantity.locationId,
+            transInventory: toDbDecimal(bcSub(newQuantity, oldQuantity), 3),
             transComment: "Manually editing of quantity",
-          }).run();
+          });
         }
       }
     }
-
-    return itemId!;
+    return itemId;
   });
 }
 
-export function deleteItem(itemId: number, employeeId: number): void {
-  const db = getDbSync();
-  db.transaction((tx) => {
-    tx.update(items).set({ deleted: true }).where(eq(items.itemId, itemId)).run();
-    const qrows = tx.select().from(itemQuantities).where(eq(itemQuantities.itemId, itemId)).all();
-    for (const q of qrows) {
-      tx.insert(inventory).values({
-        transItems: itemId,
-        transUser: employeeId,
-        transLocation: q.locationId,
-        transInventory: -q.quantity,
-        transComment: "Item is deleted",
-      }).run();
+export async function deleteItem(itemId: number, employeeId: number): Promise<void> {
+  const db = await getDb();
+  const quantities = await db
+    .select()
+    .from(itemQuantities)
+    .where(eq(itemQuantities.itemId, itemId));
+  await withTransaction(async (tx) => {
+    await tx.update(items).set({ deleted: true }).where(eq(items.itemId, itemId));
+    await tx
+      .update(itemQuantities)
+      .set({ quantity: "0" })
+      .where(eq(itemQuantities.itemId, itemId));
+    for (const quantity of quantities) {
+      if (dec(quantity.quantity).gt(0)) {
+        await tx.insert(inventory).values({
+          transItems: itemId,
+          transUser: employeeId,
+          transLocation: quantity.locationId,
+          transInventory: toDbDecimal(bcMul(quantity.quantity, "-1"), 3),
+          transComment: "Item is deleted",
+        });
+      }
     }
-    tx.update(itemQuantities).set({ quantity: 0 }).where(eq(itemQuantities.itemId, itemId)).run();
   });
 }
 
-export function adjustInventory(itemId: number, locationId: number, newQty: number, employeeId: number, comment = "Manually editing of quantity"): void {
-  const db = getDbSync();
-  db.transaction((tx) => {
-    const existing = tx.select().from(itemQuantities)
-      .where(and(eq(itemQuantities.itemId, itemId), eq(itemQuantities.locationId, locationId)))
-      .get();
-    const oldQty = existing?.quantity ?? 0;
-    const delta = newQty - oldQty;
-    if (existing) {
-      tx.update(itemQuantities).set({ quantity: newQty })
-        .where(and(eq(itemQuantities.itemId, itemId), eq(itemQuantities.locationId, locationId)))
-        .run();
+export async function undeleteItem(itemId: number): Promise<void> {
+  const db = await getDb();
+  await db.update(items).set({ deleted: false }).where(eq(items.itemId, itemId));
+}
+
+export async function deleteItemList(itemIds: number[], employeeId: number): Promise<void> {
+  for (const id of itemIds) await deleteItem(id, employeeId);
+}
+
+export async function adjustInventory(
+  itemId: number,
+  locationId: number,
+  newQuantity: DecimalInput,
+  employeeId: number,
+  comment = "Manually editing of quantity",
+): Promise<void> {
+  await withTransaction(async (tx) => {
+    const existing = await tx
+      .select()
+      .from(itemQuantities)
+      .where(
+        and(eq(itemQuantities.itemId, itemId), eq(itemQuantities.locationId, locationId)),
+      )
+      .limit(1);
+    const oldQuantity = existing[0]?.quantity ?? "0";
+    const newValue = toDbDecimal(newQuantity, 3);
+    if (existing.length === 0) {
+      await tx.insert(itemQuantities).values({ itemId, locationId, quantity: newValue });
     } else {
-      tx.insert(itemQuantities).values({ itemId, locationId, quantity: newQty }).run();
+      await tx
+        .update(itemQuantities)
+        .set({ quantity: newValue })
+        .where(
+          and(eq(itemQuantities.itemId, itemId), eq(itemQuantities.locationId, locationId)),
+        );
     }
-    if (delta !== 0) {
-      tx.insert(inventory).values({
+    const delta = bcSub(newValue, oldQuantity);
+    if (!dec(delta).isZero()) {
+      await tx.insert(inventory).values({
         transItems: itemId,
         transUser: employeeId,
         transLocation: locationId,
-        transInventory: delta,
+        transInventory: toDbDecimal(delta, 3),
         transComment: comment,
-      }).run();
+      });
     }
   });
 }
 
-export function itemNumberExists(itemNumber: string, excludeItemId?: number): boolean {
-  if (!itemNumber) return false;
-  const db = getDbSync();
-  const row = db.select().from(items).where(eq(items.itemNumber, itemNumber)).get();
-  if (!row) return false;
-  if (excludeItemId && row.itemId === excludeItemId) return false;
-  return true;
+export async function recordInventoryDelta(
+  itemId: number,
+  locationId: number,
+  employeeId: number,
+  delta: DecimalInput,
+  comment: string,
+  transDate?: string,
+): Promise<void> {
+  const db = await getDb();
+  await db.insert(inventory).values({
+    transItems: itemId,
+    transUser: employeeId,
+    transLocation: locationId,
+    transInventory: toDbDecimal(delta, 3),
+    transComment: comment,
+    ...(transDate ? { transDate } : {}),
+  });
 }
 
-export function suggestItems(term: string, opts: { stockOnly?: boolean; kitsOnly?: boolean; limit?: number } = {}): ItemRow[] {
-  const db = getDbSync();
-  const like_term = `%${term}%`;
+/** `Item::change_cost_price` — pre-receipt stock, bcmath truncation, 2-dp column. */
+export async function changeCostPrice(
+  itemId: number,
+  itemsReceived: DecimalInput,
+  newPrice: DecimalInput,
+  oldPrice?: DecimalInput,
+): Promise<void> {
+  const item = await getItemById(itemId);
+  if (!item) return;
+  const previousPrice = oldPrice ?? item.costPrice;
+  const db = await getDb();
+  const rows = await db
+    .select({ quantity: itemQuantities.quantity })
+    .from(itemQuantities)
+    .innerJoin(stockLocations, eq(stockLocations.locationId, itemQuantities.locationId))
+    .where(and(eq(itemQuantities.itemId, itemId), eq(stockLocations.deleted, false)));
+  const oldTotalQuantity = rows.reduce(
+    (sum, row) => bcAdd(sum, row.quantity),
+    dec(0),
+  );
+  const totalQuantity = bcAdd(oldTotalQuantity, itemsReceived);
+  if (dec(totalQuantity).isZero()) {
+    await db.update(items).set({ costPrice: toDbDecimal(newPrice, 2) }).where(eq(items.itemId, itemId));
+    return;
+  }
+  const numerator = bcAdd(
+    bcMul(itemsReceived, newPrice),
+    bcMul(oldTotalQuantity, previousPrice),
+  );
+  const average = bcDiv(numerator, totalQuantity);
+  await db
+    .update(items)
+    .set({ costPrice: toDbDecimal(phpRound(average, 2, ROUNDING_MODE.HALF_UP), 2) })
+    .where(eq(items.itemId, itemId));
+}
+
+export async function updateItemNumber(itemId: number, itemNumber: string): Promise<void> {
+  const db = await getDb();
+  await db
+    .update(items)
+    .set({ itemNumber: itemNumber || null })
+    .where(eq(items.itemId, itemId));
+}
+
+export async function updateItemName(itemId: number, name: string): Promise<void> {
+  const db = await getDb();
+  await db.update(items).set({ name }).where(eq(items.itemId, itemId));
+}
+
+export async function updateItemDescription(
+  itemId: number,
+  description: string,
+): Promise<void> {
+  const db = await getDb();
+  await db
+    .update(items)
+    .set({ description })
+    .where(eq(items.itemId, itemId));
+}
+
+export async function updateMultiple(
+  itemIds: number[],
+  fields: Record<string, unknown>,
+): Promise<void> {
+  if (itemIds.length === 0) return;
+  const db = await getDb();
+  await db.update(items).set(fields).where(inArray(items.itemId, itemIds));
+}
+
+export async function bulkUpdate(
+  itemIds: number[],
+  fields: Record<string, unknown>,
+  employeeId: number,
+): Promise<void> {
+  void employeeId;
+  await updateMultiple(itemIds, fields);
+}
+
+export async function getMultipleInfo(
+  itemIds: number[],
+  locationId?: number | null,
+): Promise<ItemRow[]> {
+  if (locationId === null || locationId === undefined) return [];
+  if (itemIds.length === 0) return [];
+  const db = await getDb();
+  const rows = await db
+    .select({
+      item: items,
+      quantity: itemQuantities.quantity,
+      companyName: suppliers.companyName,
+    })
+    .from(items)
+    .leftJoin(suppliers, eq(suppliers.personId, items.supplierId))
+    .innerJoin(
+      itemQuantities,
+      and(
+        eq(itemQuantities.itemId, items.itemId),
+        eq(itemQuantities.locationId, locationId),
+      ),
+    )
+    .where(inArray(items.itemId, itemIds))
+    .groupBy(items.itemId);
+  return rows.map((row) =>
+    rowToItem(row.item, {
+      quantity: row.quantity,
+      companyName: row.companyName ?? null,
+    }),
+  );
+}
+
+export async function suggestItems(
+  term: string,
+  options: { stockOnly?: boolean; kitsOnly?: boolean; limit?: number } = {},
+): Promise<ItemRow[]> {
+  const db = await getDb();
+  const pattern = `%${term}%`;
   const conditions = [
     eq(items.deleted, false),
     or(
-      like(items.name, like_term),
-      like(items.itemNumber, like_term),
-      like(items.category, like_term)
+      like(items.name, pattern),
+      like(items.itemNumber, pattern),
+      like(items.category, pattern),
+      like(items.description, pattern),
     )!,
   ];
-  if (opts.stockOnly) conditions.push(eq(items.stockType, STOCK_TYPE.HAS_STOCK));
-  if (opts.kitsOnly) conditions.push(eq(items.itemType, ITEM_TYPE.ITEM_KIT));
-  return db.select()
+  if (options.stockOnly) conditions.push(eq(items.stockType, STOCK_TYPE.HAS_STOCK));
+  if (options.kitsOnly) conditions.push(eq(items.itemType, ITEM_TYPE.ITEM_KIT));
+  const rows = await db
+    .select()
     .from(items)
     .where(and(...conditions))
-    .limit(opts.limit ?? 10)
-    .all() as ItemRow[];
+    .orderBy(asc(items.name))
+    .limit(options.limit ?? 25);
+  return rows.map((row) => rowToItem(row));
 }
 
-export function getCategorySuggestions(term: string): string[] {
-  const db = getDbSync();
-  const rows = db.select({ c: sql<string>`DISTINCT ${items.category}` })
+export async function getCategorySuggestions(term: string): Promise<string[]> {
+  const db = await getDb();
+  const rows = await db
+    .selectDistinct({ category: items.category })
     .from(items)
-    .where(and(
-      eq(items.deleted, false),
-      like(items.category, `%${term}%`),
-      ne(items.category, "")
-    ))
-    .limit(10)
-    .all();
-  return rows.map((r) => r.c).filter(Boolean) as string[];
+    .where(
+      and(
+        eq(items.deleted, false),
+        like(items.category, `%${term}%`),
+        ne(items.category, ""),
+      ),
+    )
+    .limit(25);
+  return rows.map((row) => row.category).filter(Boolean);
 }
 
-export function bulkUpdate(itemIds: number[], fields: Partial<ItemRow>, employeeId: number): void {
-  const db = getDbSync();
-  db.transaction((tx) => {
-    for (const id of itemIds) {
-      tx.update(items).set(fields).where(eq(items.itemId, id)).run();
-    }
-  });
-  void employeeId;
+export async function getCategories(): Promise<string[]> {
+  return getCategorySuggestions("");
 }
 
-export { attributeDefinitions, attributeLinks, attributeValues };
-void people;
-
-export function getItemInfo(itemId: number): ItemRow | null {
-  return getItemById(itemId);
+export async function getLocationSuggestions(term: string): Promise<string[]> {
+  const db = await getDb();
+  const rows = await db
+    .select({ name: stockLocations.locationName })
+    .from(stockLocations)
+    .where(and(eq(stockLocations.deleted, false), like(stockLocations.locationName, `%${term}%`)));
+  return rows.map((row) => row.name ?? "").filter(Boolean);
 }
 
-export function getInfoByIdOrNumber(input: string, includeDeleted = false): ItemRow | null {
-  const item = getItemByIdOrNumber(input);
-  if (!item) return null;
-  if (!includeDeleted && item.deleted) return null;
-  return item;
-}
-
-export function getItemIdByNumber(itemNumber: string, ignoreDeleted = false, deleted = false): number | null {
-  const row = getItemByNumber(itemNumber);
-  if (!row) return null;
-  if (ignoreDeleted && row.deleted === deleted) return null;
-  return row.itemId;
-}
-
-export function getMultipleInfo(itemIds: number[], locationId?: number): ItemRow[] {
-  const db = getDbSync();
-  const rows = db.select().from(items).where(sql`${items.itemId} IN (${itemIds.join(",") || "NULL"})`).all() as ItemRow[];
-  if (!locationId) return rows;
-  const qrows = db.select().from(itemQuantities)
-    .where(sql`${itemQuantities.itemId} IN (${itemIds.join(",") || "NULL"}) AND ${itemQuantities.locationId} = ${locationId}`).all();
-  const map = new Map(qrows.map((q) => [q.itemId, q.quantity]));
-  return rows.map((r) => ({ ...r, quantity: map.get(r.itemId) ?? 0 })) as ItemRow[];
-}
-
-export function changeCostPrice(itemId: number, itemsReceived: number, newPrice: number, oldPrice: number, employeeId: number): void {
-  const db = getDbSync();
-  const existing = db.select().from(items).where(eq(items.itemId, itemId)).get();
-  if (!existing) return;
-  if (itemsReceived <= 0) {
-    db.update(items).set({ costPrice: newPrice }).where(eq(items.itemId, itemId)).run();
-    return;
-  }
-  const sumRow = db.select({ total: sql<number>`COALESCE(SUM(${itemQuantities.quantity}), 0)` })
-    .from(itemQuantities)
-    .innerJoin(stockLocations, eq(stockLocations.locationId, itemQuantities.locationId))
-    .where(and(eq(itemQuantities.itemId, itemId), eq(stockLocations.deleted, false)))
-    .get();
-  const oldTotalQty = sumRow?.total ?? 0;
-  const totalQty = oldTotalQty + itemsReceived;
-  if (totalQty <= 0) {
-    db.update(items).set({ costPrice: newPrice }).where(eq(items.itemId, itemId)).run();
-    return;
-  }
-  const avg = (itemsReceived * newPrice + oldTotalQty * oldPrice) / totalQty;
-  db.update(items).set({ costPrice: Math.round(avg * 10000) / 10000 }).where(eq(items.itemId, itemId)).run();
-  void employeeId;
-}
-
-export function updateItemNumber(itemId: number, itemNumber: string): void {
-  getDbSync().update(items).set({ itemNumber: itemNumber || null }).where(eq(items.itemId, itemId)).run();
-}
-
-export function updateItemName(itemId: number, name: string): void {
-  getDbSync().update(items).set({ name }).where(eq(items.itemId, itemId)).run();
-}
-
-export function updateItemDescription(itemId: number, description: string): void {
-  getDbSync().update(items).set({ description: description || null }).where(eq(items.itemId, itemId)).run();
-}
-
-export function getItemName(asName = true): unknown {
-  if (asName) return sql<string>`${items.name}`;
-  return sql<string>`COALESCE(${items.name}, '')`;
-}
-
-export function getAllItems(stockLocationId?: number, limit = 100, offset = 0): ItemRow[] {
-  const db = getDbSync();
-  const rows = db.select().from(items).where(eq(items.deleted, false)).limit(limit).offset(offset).all() as ItemRow[];
-  if (!stockLocationId) return rows;
-  const ids = rows.map((r) => r.itemId);
-  if (!ids.length) return rows;
-  const qrows = db.select().from(itemQuantities)
-    .where(sql`${itemQuantities.itemId} IN (${ids.join(",")}) AND ${itemQuantities.locationId} = ${stockLocationId}`).all();
-  const map = new Map(qrows.map((q) => [q.itemId, q.quantity]));
-  return rows.map((r) => ({ ...r, quantity: map.get(r.itemId) ?? 0 })) as ItemRow[];
-}
-
-export function getStockSearchSuggestions(search: string, limit = 25): ItemRow[] {
+export async function getStockSearchSuggestions(
+  search: string,
+  limit = 25,
+): Promise<ItemRow[]> {
   return suggestItems(search, { stockOnly: true, limit });
 }
 
-export function getKitSearchSuggestions(search: string, limit = 25): ItemRow[] {
-  return suggestItems(search, { kitsOnly: true, limit });
-}
-
-export function getLowSellSuggestions(search: string, limit = 25): ItemRow[] {
-  const db = getDbSync();
+export async function getKitSearchSuggestions(
+  search: string,
+  limit = 25,
+): Promise<ItemRow[]> {
+  const db = await getDb();
   const pattern = `%${search}%`;
-  return db.select().from(items)
-    .where(and(
-      eq(items.deleted, false),
-      or(like(items.name, pattern), like(items.itemNumber, pattern))!
-    ))
-    .limit(limit)
-    .all() as ItemRow[];
+  const rows = await db
+    .select()
+    .from(itemKits)
+    .where(or(like(itemKits.name, pattern), like(itemKits.itemKitNumber, pattern)))
+    .limit(limit);
+  return rows.map((row) => ({
+    itemId: row.itemId,
+    name: row.name,
+    category: "",
+    supplierId: null,
+    itemNumber: row.itemKitNumber,
+    description: row.description,
+    costPrice: "0",
+    unitPrice: "0",
+    reorderLevel: "0",
+    receivingQuantity: "0",
+    picFilename: null,
+    allowAltDescription: false,
+    isSerialized: false,
+    stockType: STOCK_TYPE.HAS_NO_STOCK,
+    itemType: ITEM_TYPE.ITEM_KIT,
+    taxCategoryId: null,
+    qtyPerPack: "1",
+    packName: null,
+    lowSellItemId: null,
+    hsnCode: "",
+    deleted: false,
+  }));
 }
 
-export function getLocationSuggestions(search: string): string[] {
-  const db = getDbSync();
-  const rows = db.select({ c: sql<string>`${items.category}` })
+export async function getLowSellSuggestions(
+  search: string,
+  limit = 25,
+): Promise<ItemRow[]> {
+  const db = await getDb();
+  const pattern = `%${search}%`;
+  const rows = await db
+    .select()
     .from(items)
-    .where(and(eq(items.deleted, false), like(items.category, `%${search}%`), ne(items.category, "")))
-    .limit(10)
-    .all();
-  const set = new Set<string>();
-  for (const r of rows) if (r.c) set.add(r.c);
-  return Array.from(set);
+    .where(
+      and(
+        eq(items.deleted, false),
+        or(like(items.name, pattern), like(items.itemNumber, pattern))!,
+      ),
+    )
+    .limit(limit);
+  return rows.map((row) => rowToItem(row));
 }
 
-export function getCategories(): string[] {
-  const db = getDbSync();
-  const rows = db.selectDistinct({ c: items.category }).from(items)
-    .where(and(eq(items.deleted, false), ne(items.category, ""))).all();
-  return rows.map((r) => r.c ?? "").filter(Boolean);
+export async function getTotalRows(): Promise<number> {
+  const db = await getDb();
+  const rows = await db
+    .select({ value: sql<number>`count(*)` })
+    .from(items)
+    .where(eq(items.deleted, false));
+  return Number(rows[0]?.value ?? 0);
 }
 
-export function getTotalRows(): number {
-  const db = getDbSync();
-  const r = db.select({ c: sql<number>`count(*)` }).from(items).where(eq(items.deleted, false)).get();
-  return r?.c ?? 0;
+export async function getItemKitById(itemKitId: number) {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(itemKits)
+    .where(eq(itemKits.itemKitId, itemKitId))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
-export function undeleteItem(itemId: number): void {
-  getDbSync().update(items).set({ deleted: false }).where(eq(items.itemId, itemId)).run();
+export async function getItemKitItems(itemKitId: number) {
+  const db = await getDb();
+  return db
+    .select({
+      itemId: itemKitItems.itemId,
+      quantity: itemKitItems.quantity,
+      kitSequence: itemKitItems.kitSequence,
+    })
+    .from(itemKitItems)
+    .where(eq(itemKitItems.itemKitId, itemKitId))
+    .orderBy(asc(itemKitItems.kitSequence));
 }
 
-export function deleteItemList(itemIds: number[], employeeId: number): void {
-  for (const id of itemIds) deleteItem(id, employeeId);
+export async function getAttributesForItem(
+  itemId: number,
+  saleId: number | null,
+  flags: number,
+): Promise<{ attributeValues: string; attributeDtvalues: string }> {
+  const db = await getDb();
+  const conditions = [
+    eq(attributeLinks.itemId, itemId),
+    eq(attributeDefinitions.deleted, false),
+    ne(attributeDefinitions.definitionType, "GROUP"),
+    sql`(${attributeDefinitions.definitionFlags} & ${flags}) = ${flags}`,
+  ];
+  if (saleId !== null && saleId > 0) {
+    conditions.push(eq(attributeLinks.saleId, saleId));
+  } else {
+    conditions.push(isNull(attributeLinks.saleId), isNull(attributeLinks.receivingId));
+  }
+  const rows = await db
+    .select({
+      attributeValue: attributeValues.attributeValue,
+      attributeDate: attributeValues.attributeDate,
+      definitionId: attributeLinks.definitionId,
+    })
+    .from(attributeLinks)
+    .innerJoin(attributeValues, eq(attributeValues.attributeId, attributeLinks.attributeId))
+    .innerJoin(
+      attributeDefinitions,
+      eq(attributeDefinitions.definitionId, attributeLinks.definitionId),
+    )
+    .where(and(...conditions))
+    .orderBy(asc(attributeLinks.definitionId));
+  const values = rows
+    .map((row) => row.attributeValue)
+    .filter((value): value is string => value !== null);
+  const dates = rows
+    .map((row) => (row.attributeDate ? formatDb(row.attributeDate, dateFormat()) : null))
+    .filter((value): value is string => value !== null);
+  return {
+    attributeValues: values.join(", "),
+    attributeDtvalues: dates.join(", "),
+  };
 }
 
-export function updateMultiple(itemIds: number[], fields: Partial<ItemRow>): void {
-  const db = getDbSync();
-  db.transaction((tx) => {
-    for (const id of itemIds) {
-      tx.update(items).set(fields).where(eq(items.itemId, id)).run();
-    }
-  });
+export async function getItemSupplierPeople() {
+  const db = await getDb();
+  return db.select().from(people).limit(1);
 }
