@@ -14,6 +14,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:studio": "drizzle-kit studio --config=drizzle.config.sqlite.ts",
     "test": "vitest run",
+    "test:mysql": "vitest run --config=vitest.mysql.config.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",

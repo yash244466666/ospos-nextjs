@@ -1,5 +1,5 @@
 import { and, asc, eq, sql } from "drizzle-orm";
-import { insertReturning } from "@/lib/db/insert";
+import { insertIgnoreRow, insertReturning } from "@/lib/db/insert";
 import { getDb, type Db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { employees, people, grants } from "@/db/schema";
@@ -220,10 +220,7 @@ export async function saveEmployee(input: {
     }
     await tx.delete(grants).where(eq(grants.personId, pid!));
     for (const permissionId of input.grants) {
-      await tx
-        .insert(grants)
-        .values({ personId: pid!, permissionId })
-        .onConflictDoNothing();
+      await insertIgnoreRow(tx, grants, { personId: pid!, permissionId });
     }
     return pid!;
   });

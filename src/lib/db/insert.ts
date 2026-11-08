@@ -31,3 +31,60 @@ export async function insertReturning(
     .returning({ id: idColumn as never });
   return inserted as { id: number }[];
 }
+
+/**
+ * Cross-dialect upsert. SQLite uses `ON CONFLICT ... DO UPDATE`; MySQL uses
+ * `ON DUPLICATE KEY UPDATE`. Drizzle exposes different builder methods per
+ * dialect, so this is the single place that knows both.
+ */
+export async function upsertRow(
+  tx: Db,
+  table: unknown,
+  values: unknown,
+  target: SQLiteColumn,
+  set: Record<string, unknown>,
+): Promise<void> {
+  const builder = tx.insert(table as never).values(values as never);
+  if (IS_MYSQL) {
+    await (
+      builder as unknown as {
+        onDuplicateKeyUpdate: (config: { set: Record<string, unknown> }) => Promise<unknown>;
+      }
+    ).onDuplicateKeyUpdate({ set });
+    return;
+  }
+  await (
+    builder as unknown as {
+      onConflictDoUpdate: (config: { target: unknown; set: Record<string, unknown> }) => Promise<unknown>;
+    }
+  ).onConflictDoUpdate({ target, set });
+}
+
+/**
+ * Cross-dialect insert-ignore. SQLite uses `ON CONFLICT DO NOTHING`; MySQL has
+ * no equivalent builder no-op, so a duplicate-key error is swallowed.
+ */
+export async function insertIgnoreRow(
+  tx: Db,
+  table: unknown,
+  values: unknown,
+): Promise<void> {
+  if (IS_MYSQL) {
+    try {
+      await tx.insert(table as never).values(values as never);
+    } catch (error) {
+      // Drizzle wraps driver errors; the MySQL errno lives on the cause.
+      const cause = (error as { cause?: { errno?: number; code?: string } }).cause;
+      const errno = (error as { errno?: number }).errno ?? cause?.errno;
+      const code = (error as { code?: string }).code ?? cause?.code;
+      if (errno === 1062 || code === "ER_DUP_ENTRY") return;
+      throw error;
+    }
+    return;
+  }
+  await (
+    tx.insert(table as never).values(values as never) as unknown as {
+      onConflictDoNothing: () => Promise<unknown>;
+    }
+  ).onConflictDoNothing();
+}

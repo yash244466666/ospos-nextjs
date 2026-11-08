@@ -6,6 +6,7 @@ import { setConfig, setConfigBatch, getConfig, loadConfig } from "@/lib/config";
 import { CONFIG_TABS, ENCRYPTED_KEYS } from "@/lib/config/tabs";
 import { encrypt, decrypt } from "@/lib/encryption";
 import { getDb } from "@/lib/db";
+import { upsertRow } from "@/lib/db/insert";
 import { attributeDefinitions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -38,19 +39,19 @@ export async function saveConfigTabAction(tabKey: string, formData: FormData) {
   if (tabKey === "general") {
     const db = await getDb();
     if (updates.category_dropdown === "1") {
-      await db
-        .insert(attributeDefinitions)
-        .values({
+      await upsertRow(
+        db,
+        attributeDefinitions,
+        {
           definitionId: -1,
           definitionName: "ospos_category",
           definitionType: "DROPDOWN",
           definitionFlags: 0,
           deleted: false,
-        })
-        .onConflictDoUpdate({
-          target: attributeDefinitions.definitionId,
-          set: { definitionName: "ospos_category", definitionType: "DROPDOWN", deleted: false },
-        });
+        },
+        attributeDefinitions.definitionId,
+        { definitionName: "ospos_category", definitionType: "DROPDOWN", deleted: false },
+      );
     } else {
       await db
         .update(attributeDefinitions)

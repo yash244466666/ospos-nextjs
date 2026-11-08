@@ -191,7 +191,7 @@ export async function completeReceiving(
       }
 
       await changeQuantity(tx, line.itemId, line.itemLocation, itemsReceived);
-      await tx.run(sqlInventory({
+      await affectedRows(tx, sqlInventory({
         transDate: nowDb(timezone()),
         transItems: line.itemId,
         transUser: input.employeeId,
@@ -244,7 +244,7 @@ export async function cancelReceiving(
     if (updateInventory) {
       for (const line of lines) {
         const reversal = bcMul(line.quantityPurchased, line.receivingQuantity).negated();
-        await tx.run(sqlInventory({
+        await affectedRows(tx, sqlInventory({
           transDate: nowDb(timezone()),
           transItems: line.itemId,
           transUser: employeeId,

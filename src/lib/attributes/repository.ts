@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, isNull, like, sql } from "drizzle-orm";
-import { insertReturning } from "@/lib/db/insert";
+import { affectedRows } from "@/lib/db/execute";
+import { insertIgnoreRow, insertReturning } from "@/lib/db/insert";
 import { getDb } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { attributeDefinitions, attributeValues, attributeLinks } from "@/db/schema";
@@ -435,16 +436,13 @@ export async function copyAttributeLinks(fromItemId: number, toItemId: number): 
       ),
     );
   for (const l of links) {
-    await db
-      .insert(attributeLinks)
-      .values({
-        definitionId: l.definitionId,
-        itemId: toItemId,
-        saleId: l.saleId,
-        receivingId: l.receivingId,
-        attributeId: l.attributeId,
-      })
-      .onConflictDoNothing();
+    await insertIgnoreRow(db, attributeLinks, {
+      definitionId: l.definitionId,
+      itemId: toItemId,
+      saleId: l.saleId,
+      receivingId: l.receivingId,
+      attributeId: l.attributeId,
+    });
   }
 }
 
@@ -492,7 +490,8 @@ export async function getSuggestions(term: string, limit = 25): Promise<Definiti
 
 export async function deleteOrphanedValues(): Promise<void> {
   await withTransaction(async (tx) => {
-    await tx.run(
+    await affectedRows(
+      tx,
       sql`DELETE FROM ospos_attribute_values
           WHERE attribute_id NOT IN (
             SELECT attribute_id FROM ospos_attribute_links WHERE attribute_id IS NOT NULL

@@ -300,7 +300,7 @@ export async function saveSale(input: CompleteSaleInput): Promise<number> {
           await tx.update(items).set({ deleted: false }).where(eq(items.itemId, line.itemId));
         }
 
-        await tx.run(sqliteOrMysqlInventory(tx, {
+        await affectedRows(tx, sqliteOrMysqlInventory(tx, {
           transDate: nowDb(timezone()),
           transItems: line.itemId,
           transUser: input.employeeId,
@@ -672,7 +672,7 @@ export async function cancelSale(
         .where(eq(items.itemId, line.itemId))
         .limit(1);
       if (itemRows[0]?.stockType !== STOCK_TYPE.HAS_STOCK) continue;
-      await db.run(sqliteOrMysqlInventory(db, {
+      await affectedRows(db, sqliteOrMysqlInventory(db, {
         transDate,
         transItems: line.itemId,
         transUser: employeeId,
@@ -681,7 +681,8 @@ export async function cancelSale(
         transInventory: toDbDecimal(line.quantityPurchased, 3),
       }));
       const restoreDelta = Number(line.quantityPurchased);
-      await db.run(
+      await affectedRows(
+        db,
         IS_SQLITE
           ? sql`INSERT INTO ospos_item_quantities (item_id, location_id, quantity)
                 VALUES (${line.itemId}, ${line.itemLocation}, ${restoreDelta})

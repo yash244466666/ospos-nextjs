@@ -1,5 +1,8 @@
+import type { RowDataPacket } from "mysql2/promise";
 import { eq, sql } from "drizzle-orm";
-import { getDb, IS_SQLITE } from "@/lib/db";
+import { getDb, IS_MYSQL } from "@/lib/db";
+import { upsertRow } from "@/lib/db/insert";
+import { getRawMysqlPool } from "@/lib/db/mysql";
 import { withTransaction } from "@/lib/db/transaction";
 import { appConfig } from "@/db/schema";
 import { ENCRYPTED_KEYS } from "./tabs";
@@ -73,20 +76,14 @@ export function getConfigDecrypted(key: string, defaultValue = ""): string {
 
 export async function setConfig(key: string, value: string): Promise<void> {
   const db = await getDb();
-  await db
-    .insert(appConfig)
-    .values({ key, value })
-    .onConflictDoUpdate({ target: appConfig.key, set: { value } });
+  await upsertRow(db, appConfig, { key, value }, appConfig.key, { value });
   invalidateConfigCache();
 }
 
 export async function setConfigBatch(values: Record<string, string>): Promise<void> {
   await withTransaction(async (tx) => {
     for (const [key, value] of Object.entries(values)) {
-      await tx
-        .insert(appConfig)
-        .values({ key, value })
-        .onConflictDoUpdate({ target: appConfig.key, set: { value } });
+      await upsertRow(tx, appConfig, { key, value }, appConfig.key, { value });
     }
   });
   invalidateConfigCache();
@@ -103,10 +100,43 @@ export async function acquireNextSequence(
     | "last_used_quote_number"
     | "last_used_work_order_number",
 ): Promise<number> {
+  if (IS_MYSQL) {
+    // MySQL 8 has no UPDATE ... RETURNING. A row-locking transaction keeps the
+    // read-modify-write atomic with the same observable result as the SQLite
+    // UPDATE ... RETURNING path (DEV-01).
+    const connection = await getRawMysqlPool().getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<RowDataPacket[]>(
+        "SELECT value FROM ospos_app_config WHERE `key` = ? FOR UPDATE",
+        [key],
+      );
+      const current = rows.length > 0 ? parseInt(String(rows[0].value), 10) : 0;
+      const next = Number.isFinite(current) ? current + 1 : 1;
+      if (rows.length > 0) {
+        await connection.query(
+          "UPDATE ospos_app_config SET value = ? WHERE `key` = ?",
+          [String(next), key],
+        );
+      } else {
+        await connection.query(
+          "INSERT INTO ospos_app_config (`key`, value) VALUES (?, ?)",
+          [key, String(next)],
+        );
+      }
+      await connection.commit();
+      if (cache) cache.set(key, String(next));
+      return next;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
   const db = await getDb();
-  const increment = IS_SQLITE
-    ? sql`CAST(CAST(${appConfig.value} AS INTEGER) + 1 AS TEXT)`
-    : sql`CAST(CAST(${appConfig.value} AS UNSIGNED) + 1 AS CHAR)`;
+  const increment = sql`CAST(CAST(${appConfig.value} AS INTEGER) + 1 AS TEXT)`;
   const row = await db
     .update(appConfig)
     .set({ value: increment })
