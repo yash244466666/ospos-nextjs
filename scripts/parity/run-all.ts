@@ -16,6 +16,7 @@ const gates: Gate[] = [
   { name: "config", command: "npx", args: ["tsx", "scripts/parity/config-keys.ts"] },
   { name: "seed", command: "npx", args: ["tsx", "scripts/parity/seed.ts"] },
   { name: "locales", command: "npx", args: ["tsx", "scripts/parity/locale-keys.ts"] },
+  { name: "reports", command: "npx", args: ["tsx", "scripts/parity/reports.ts"] },
   { name: "no-stubs", command: "bash", args: ["scripts/parity/no-stubs.sh"] },
   { name: "sql-safety", command: "bash", args: ["scripts/parity/sql-safety.sh"] },
 ];

@@ -1,4 +1,4 @@
-import { requirePermission } from "@/lib/auth/with-permission";
+import { requireGrant } from "@/lib/auth/with-permission";
 import { getReport, runReport } from "@/lib/reports/registry";
 
 function csvEscape(v: unknown): string {
@@ -12,11 +12,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ key: str
   const { key } = await params;
   const def = getReport(key);
   if (!def) return new Response("Not found", { status: 404 });
-  const subperm = def.permission.startsWith("reports_") ? def.permission.slice("reports_".length) : undefined;
-  await requirePermission("reports", subperm);
+  await requireGrant(def.permission);
   const url = new URL(req.url);
   const filters = { start: url.searchParams.get("start") ?? undefined, end: url.searchParams.get("end") ?? undefined };
-  const rows = runReport(def, filters);
+  const rows = await runReport(def, {
+    ...filters,
+    saleType: url.searchParams.get("sale_type") ?? undefined,
+    locationId: url.searchParams.get("location_id") ?? undefined,
+  });
   const header = def.columns.map((c) => csvEscape(c.label)).join(",");
   const body = rows.map((r) => def.columns.map((c) => csvEscape(r[c.name])).join(",")).join("\n");
   return new Response(`${header}\n${body}`, {
