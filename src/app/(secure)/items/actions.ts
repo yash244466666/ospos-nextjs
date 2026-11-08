@@ -19,6 +19,8 @@ import { listDefinitions, getAttributesByItem, saveTypedItemAttribute, copyAttri
 import { getTaxCategories } from "@/lib/taxes/repository";
 import { generateBarcodesPdf } from "@/lib/barcode";
 import { z } from "zod";
+import { imageSize } from "image-size";
+import { getConfig } from "@/lib/config";
 import { parseFormDataEntries } from "./form-data";
 
 const ItemSchema = z.object({
@@ -54,15 +56,44 @@ const ItemSchema = z.object({
 
 const UPLOADS_DIR = path.join(process.cwd(), "uploads", "item_pics");
 
-async function saveUploadedPicture(picture: File | null, existingFilename?: string | null): Promise<string | null> {
+async function saveUploadedPicture(
+  picture: File | null,
+  existingFilename?: string | null,
+): Promise<string | null> {
   if (!picture || picture.size === 0) return existingFilename ?? null;
+
+  const allowedTypes = getConfig("image_allowed_types", "gif,jpg,png")
+    .split(",")
+    .map((type) => type.trim().toLowerCase())
+    .filter(Boolean);
+  const ext = path.extname(picture.name).toLowerCase().replace(".", "") || "jpg";
+  if (!allowedTypes.includes(ext)) {
+    throw new Error("Invalid image type");
+  }
+  const maxSizeKb = Number(getConfig("image_max_size", "128"));
+  if (picture.size > maxSizeKb * 1024) {
+    throw new Error("Image is too large");
+  }
+  const buffer = Buffer.from(await picture.arrayBuffer());
+  const isPng = buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  const isGif = buffer.subarray(0, 3).toString("ascii") === "GIF";
+  if ((ext === "png" && !isPng) || ((ext === "jpg" || ext === "jpeg") && !isJpeg) || (ext === "gif" && !isGif)) {
+    throw new Error("Invalid image content");
+  }
+  const dimensions = imageSize(buffer);
+  const maxWidth = Number(getConfig("image_max_width", "640"));
+  const maxHeight = Number(getConfig("image_max_height", "480"));
+  if ((dimensions.width ?? 0) > maxWidth || (dimensions.height ?? 0) > maxHeight) {
+    throw new Error("Image dimensions are too large");
+  }
+
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-  const ext = path.extname(picture.name).toLowerCase() || ".jpg";
-  const base = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const filename = `${base}${ext}`;
-  const fullPath = path.join(UPLOADS_DIR, filename);
-  const buf = Buffer.from(await picture.arrayBuffer());
-  fs.writeFileSync(fullPath, buf);
+  const rawName = path
+    .basename(picture.name, path.extname(picture.name))
+    .replace(/[^a-zA-Z0-9_\-.]/g, "_");
+  const filename = `${rawName}.${ext}`;
+  fs.writeFileSync(path.join(UPLOADS_DIR, filename), buffer);
   return filename;
 }
 

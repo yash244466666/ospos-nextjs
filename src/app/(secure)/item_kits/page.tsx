@@ -1,13 +1,13 @@
 import { requirePermission } from "@/lib/auth/with-permission";
-import { getDbSync } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { itemKits } from "@/db/schema";
 import ItemKitTable from "@/components/item_kits/item-kit-table";
 import Link from "next/link";
 
 export default async function ItemKitsPage() {
   await requirePermission("item_kits");
-  const db = getDbSync();
-  const rows = db.select().from(itemKits).all();
+  const db = await getDb();
+  const rows = await db.select().from(itemKits);
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">

@@ -68,9 +68,16 @@ async function main(): Promise<void> {
     person_id: number;
     menu_group: string | null;
   }>("SELECT permission_id, person_id, menu_group FROM ospos_grants WHERE person_id = 1");
-  const grantedPermissionCount = PERMISSION_SEEDS.filter(
-    (permission) => !UNGRANTED_PERMISSION_IDS.has(permission.permissionId),
-  ).length;
+  // DEV-07: grant `taxes` to admin so the module is usable; upstream's
+  // migration only updates a grant row that was never inserted. When the
+  // script runs against the PHP oracle, PARITY_ALLOW_DEV=1 exempts it.
+  const oracleMode = process.env.PARITY_ALLOW_DEV === "1";
+  const expectedGrants = PERMISSION_SEEDS.filter(
+    (permission) =>
+      !UNGRANTED_PERMISSION_IDS.has(permission.permissionId) &&
+      !(oracleMode && permission.permissionId === "taxes"),
+  );
+  const grantedPermissionCount = expectedGrants.length;
   if (grants.length !== grantedPermissionCount) {
     differences.push({
       table: "grants",
@@ -78,8 +85,7 @@ async function main(): Promise<void> {
     });
   }
   const grantByPermission = new Map(grants.map((row) => [row.permission_id, row]));
-  for (const expected of PERMISSION_SEEDS) {
-    if (UNGRANTED_PERMISSION_IDS.has(expected.permissionId)) continue;
+  for (const expected of expectedGrants) {
     const actual = grantByPermission.get(expected.permissionId);
     if (!actual) {
       differences.push({ table: "grants", issue: `missing ${expected.permissionId}` });
@@ -163,7 +169,7 @@ async function main(): Promise<void> {
 
   if (differences.length > 0) fail(differences, `Seed parity (${DRIVER})`);
   ok(
-    `Seed parity PASS (${DRIVER}): 18 modules, 36 permissions, 35 grants, 5 packages, 2 tables, 1 location`,
+    `Seed parity PASS (${DRIVER}): 18 modules, 36 permissions, ${grantedPermissionCount} grants, 5 packages, 2 tables, 1 location`,
   );
 }
 

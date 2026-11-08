@@ -34,7 +34,7 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 | 2026-11-08 | `deleteOrphanedValues()` deletes values referenced by no link | Upstream implementation; the first pass deleted DROPDOWN option rows instead |
 | 2026-11-08 | SMS is the upstream configuration-presence stub | `Sms_lib::sendSMS` performs no network call; real gateway is DEV-03 |
 | 2026-11-08 | `ALLOWED_HOSTNAMES` boot check is skipped during `next build` page-data collection | Build-time import is not a production boot; runtime proxy still enforces the allowlist |
-| 2026-11-08 | Seed has 35 grants, not 36: the `taxes` permission exists but upstream never grants it | Verified against a freshly migrated PHP 3.4.3 oracle; appendix §3.4 incorrectly assumed every permission is granted |
+| 2026-11-08 | Seed grants `taxes` to admin (36 grants) as an approved deviation | The oracle has 35 because upstream never inserts the taxes grant; the plan/user require 36 and the module is otherwise unreachable |
 | 2026-11-08 | MySQL comment columns are `mediumtext`, not `text` | `CONVERT TO CHARACTER SET utf8mb4` upgrades TEXT to MEDIUMTEXT; verified with the oracle's `SHOW CREATE TABLE` |
 | 2026-11-08 | `invoice_email_message` default is the bare token string | Oracle value confirms the appendix catalog's trailing annotation was not part of the value |
 | 2026-11-08 | E2E logs in per test instead of reusing a stored cookie | OSPOS carts are session-scoped; reusing a JWT shared one cart across tests |

@@ -8,7 +8,11 @@ export default async function EmployeeEditPage({ params }: { params: Promise<{ i
   const personId = parseInt(id, 10);
   const employee = personId > 0 ? await getEmployee(personId) : null;
   const allPerms = await listAllPermissions();
-  const currentGrants = personId > 0 ? (await listEmployeeGrants(personId)).map((g) => g.permissionId) : [];
+  const grantRows = personId > 0 ? await listEmployeeGrants(personId) : [];
+  const currentGrants = grantRows.map((grant) => grant.permissionId);
+  const currentGrantGroups = Object.fromEntries(
+    grantRows.map((grant) => [grant.permissionId, grant.menuGroup ?? "home"]),
+  );
   const grantsByModule = new Map<string, { permissionId: string; moduleName: string }[]>();
   for (const p of allPerms) {
     if (!grantsByModule.has(p.moduleId)) grantsByModule.set(p.moduleId, []);
@@ -19,6 +23,7 @@ export default async function EmployeeEditPage({ params }: { params: Promise<{ i
       initial={employee}
       permissions={Array.from(grantsByModule.entries()).map(([moduleId, perms]) => ({ moduleId, perms }))}
       currentGrants={currentGrants}
+      currentGrantGroups={currentGrantGroups}
     />
   );
 }

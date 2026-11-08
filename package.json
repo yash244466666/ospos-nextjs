@@ -36,6 +36,7 @@
     "bwip-js": "^4.11.1",
     "decimal.js": "^10.6.0",
     "drizzle-orm": "^0.45.2",
+    "image-size": "^2.1.0",
     "lucide-react": "^1.22.0",
     "mysql2": "^3.22.5",
     "next": "16.2.9",

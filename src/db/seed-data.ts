@@ -166,7 +166,7 @@ export const MODULE_SEEDS: ModuleSeed[] = [
   { moduleId: "taxes", nameLangKey: "module_taxes", descLangKey: "module_taxes_desc", sort: 105, menuGroup: "office" },
 ];
 
-export const UNGRANTED_PERMISSION_IDS = new Set<string>(["taxes"]);
+export const UNGRANTED_PERMISSION_IDS = new Set<string>();
 
 export interface PermissionSeed { permissionId: string; moduleId: string; locationId: number | null; menuGroup: string }
 export const PERMISSION_SEEDS: PermissionSeed[] = [

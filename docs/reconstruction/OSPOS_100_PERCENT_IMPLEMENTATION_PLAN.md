@@ -1143,6 +1143,7 @@ A task is not complete until its matrix row is `DONE` with a test reference.
 | DEV-04 | dompdf/picqer rendering | @react-pdf/bwip-js | Stack; content/value parity verified | — |
 | DEV-05 | Bootstrap UI | Tailwind/shadcn | Stack; workflow/fields parity verified | — |
 | DEV-06 | Path traversal risk in pic-thumb | `path.basename` | Security | `Items.php:159` |
+| DEV-07 | The `taxes` permission is inserted but never granted to admin; the 3.1.1→3.2.0 migration only updates a grant row that does not exist | Seed grants `taxes` to admin (`menu_group=office`) so the Taxes module is reachable | The oracle has 35 grants; the plan/user require 36, and the module is otherwise inaccessible on a fresh install | `3.0.2_to_3.1.1.sql:204`; `3.1.1_to_3.2.0.sql:22`; verified against the Dockerized oracle |
 
 Add rows only with user approval and evidence.
 

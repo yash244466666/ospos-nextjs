@@ -1,6 +1,5 @@
 import {
   createSqliteDb,
-  getRawSqlite,
   resetSqliteInstance,
   type SqliteDb,
 } from "./sqlite";
@@ -49,12 +48,4 @@ export function resetSqliteDbInstance(): void {
   resetSqliteInstance();
 }
 
-/** @deprecated Server paths must use `getDb()`; retained for scripts only. */
-export function getDbSync(): SqliteDb {
-  if (IS_MYSQL) {
-    throw new Error("getDbSync() is SQLite-only; MySQL is async — use getDb()");
-  }
-  return getSqliteSync();
-}
 
-export { getRawSqlite };

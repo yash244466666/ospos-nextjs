@@ -302,7 +302,7 @@ export async function saveEmployee(
         await tx.insert(grants).values({
           permissionId: g.permissionId,
           personId: id!,
-          menuGroup: g.menuGroup ?? "both",
+          menuGroup: g.menuGroup ?? "home",
         });
       }
     }

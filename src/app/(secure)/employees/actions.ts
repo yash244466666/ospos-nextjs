@@ -37,7 +37,10 @@ export async function saveEmployeeAction(formData: FormData) {
   for (const p of allPerms) {
     const v = formData.get(`grant_${p.permissionId}`);
     if (v === "on") {
-      grantsList.push({ permissionId: p.permissionId });
+      grantsList.push({
+        permissionId: p.permissionId,
+        menuGroup: (formData.get(`menu_group_${p.permissionId}`) as string) || "home",
+      });
     }
   }
 

@@ -27,7 +27,17 @@ interface Perm {
   perms: { permissionId: string; moduleName: string }[];
 }
 
-export default function EmployeeForm({ initial, permissions, currentGrants }: { initial: Initial | null; permissions: Perm[]; currentGrants: string[] }) {
+export default function EmployeeForm({
+  initial,
+  permissions,
+  currentGrants,
+  currentGrantGroups = {},
+}: {
+  initial: Initial | null;
+  permissions: Perm[];
+  currentGrants: string[];
+  currentGrantGroups?: Record<string, string>;
+}) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const grantedSet = new Set(initial?.grants?.map((g) => g.permissionId) ?? currentGrants);
@@ -70,10 +80,24 @@ export default function EmployeeForm({ initial, permissions, currentGrants }: { 
             <div key={p.moduleId} className="col-span-2 md:col-span-3 font-medium mt-1">{p.moduleId}</div>
           ))}
           {permissions.flatMap((p) => p.perms).map((perm) => (
-            <label key={perm.permissionId} className="flex items-center gap-1">
-              <input type="checkbox" name={`grant_${perm.permissionId}`} defaultChecked={grantedSet.has(perm.permissionId)} />
-              <span>{perm.permissionId}</span>
-            </label>
+            <div key={perm.permissionId} className="flex items-center gap-1">
+              <input
+                type="checkbox"
+                name={`grant_${perm.permissionId}`}
+                defaultChecked={grantedSet.has(perm.permissionId)}
+              />
+              <span className="flex-1 truncate">{perm.permissionId}</span>
+              <select
+                name={`menu_group_${perm.permissionId}`}
+                defaultValue={currentGrantGroups[perm.permissionId] ?? "home"}
+                className="border px-1 py-0.5 text-xs"
+              >
+                <option value="home">Home</option>
+                <option value="office">Office</option>
+                <option value="both">Both</option>
+                <option value="--">--</option>
+              </select>
+            </div>
           ))}
         </div>
       </div>

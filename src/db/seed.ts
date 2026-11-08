@@ -112,7 +112,7 @@ export async function seedDatabase(): Promise<number> {
     );
   }
 
-  console.log("Seed complete: 138 config keys, 18 modules, 36 permissions, 35 grants.");
+  console.log("Seed complete: 138 config keys, 18 modules, 36 permissions, 36 grants.");
   return 1;
 }
 
