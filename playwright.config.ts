@@ -36,6 +36,8 @@ export default defineConfig({
       DATABASE_URL: `file:${dbFile}`,
       DB_DRIVER: "sqlite",
       NODE_ENV: "test",
+      AUTH_SECRET: "e2e-parity-secret",
+      ALLOWED_HOSTNAMES: "localhost,127.0.0.1",
     },
   },
   globalSetup: "./e2e/global-setup.ts",

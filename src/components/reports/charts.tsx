@@ -74,17 +74,32 @@ export function PieChart({ data, size = 240 }: { data: Datum[]; size?: number })
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
   const r = size / 2;
   const cx = r, cy = r;
-  let angle = -Math.PI / 2;
-  const slices = data.map((d, i) => {
-    const slice = (d.value / total) * 2 * Math.PI;
-    const x1 = cx + r * Math.cos(angle);
-    const y1 = cy + r * Math.sin(angle);
-    angle += slice;
-    const x2 = cx + r * Math.cos(angle);
-    const y2 = cy + r * Math.sin(angle);
-    const large = slice > Math.PI ? 1 : 0;
-    return { d: `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`, fill: PALETTE[i % PALETTE.length], label: d.label, value: d.value };
-  });
+  const slices = data
+    .reduce<{ slices: { d: string; fill: string; label: string; value: number }[]; angle: number }>(
+      (acc, d, i) => {
+        const slice = (d.value / total) * 2 * Math.PI;
+        const x1 = cx + r * Math.cos(acc.angle);
+        const y1 = cy + r * Math.sin(acc.angle);
+        const end = acc.angle + slice;
+        const x2 = cx + r * Math.cos(end);
+        const y2 = cy + r * Math.sin(end);
+        const large = slice > Math.PI ? 1 : 0;
+        return {
+          angle: end,
+          slices: [
+            ...acc.slices,
+            {
+              d: `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`,
+              fill: PALETTE[i % PALETTE.length],
+              label: d.label,
+              value: d.value,
+            },
+          ],
+        };
+      },
+      { slices: [], angle: -Math.PI / 2 },
+    )
+    .slices;
   return (
     <div className="flex gap-4">
       <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size}>

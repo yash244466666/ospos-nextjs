@@ -7,8 +7,11 @@ export async function POST() {
   try {
     execSync("npm run db:migrate", { stdio: "inherit" });
     return NextResponse.json({ ok: true, message: "Migrations applied" });
-  } catch (err: any) {
-    return NextResponse.json({ ok: false, message: err?.message ?? "Migration failed" }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json(
+      { ok: false, message: error instanceof Error ? error.message : "Migration failed" },
+      { status: 500 },
+    );
   }
 }
 
