@@ -1,18 +1,26 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/options";
-import { getAllowedModules } from "@/lib/auth/rbac";
+import { getAllowedHomeModules, getAllowedOfficeModules } from "@/lib/auth/rbac";
 import { Sidebar } from "@/components/shared/sidebar";
 import { UserCircle, LogOut, Bell, Store } from "lucide-react";
+import { lang } from "@/lib/i18n/lang";
 
 export default async function SecureLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
   const personId = session.user.personId;
-  const allowedModules = await getAllowedModules(personId, "both");
+  const allowedModules = await getAllowedHomeModules(personId);
+  const officeModules = await getAllowedOfficeModules(personId);
+  const labels = Object.fromEntries(
+    [...allowedModules, ...officeModules].map((module) => [
+      module.moduleId,
+      lang(`Module.${module.moduleId}`),
+    ]),
+  );
 
   return (
     <div className="flex min-h-screen bg-[var(--color-background)]">
-      <Sidebar modules={allowedModules} />
+      <Sidebar modules={allowedModules} officeModules={officeModules} labels={labels} />
       <div className="flex-1 flex flex-col min-w-0">
         <header className="bg-white border-b border-[var(--color-border)] px-6 py-3 flex items-center justify-between shadow-sm sticky top-0 z-30">
           <div className="flex items-center gap-3 text-sm">

@@ -12,7 +12,7 @@ test.describe("Cashups", () => {
     await page.locator("input[name='openAmountCash']").fill("100.00");
     await page.locator("input[name='transferAmountCash']").fill("20.00");
     await page.locator("input[name='closedAmountCash']").fill("120.00");
-    await page.locator("textarea[name='note']").fill("E2E cashup note");
+    await page.locator("input[name='note']").check();
     await page.getByTestId("save-button").click();
     await page.waitForURL("/cashups");
     await waitForTableRow(page, "100.00");
@@ -22,7 +22,7 @@ test.describe("Cashups", () => {
     await page.goto("/cashups/new/0");
     await page.locator("input[name='openAmountCash']").fill("50.00");
     await page.locator("input[name='closedAmountCash']").fill("55.00");
-    await page.locator("textarea[name='note']").fill("E2E Edit Cashup");
+    await page.locator("input[name='note']").check();
     await page.getByTestId("save-button").click();
     await page.waitForURL("/cashups");
 
@@ -39,7 +39,7 @@ test.describe("Cashups", () => {
     acceptDialogs(page);
     await page.goto("/cashups/new/0");
     await page.locator("input[name='openAmountCash']").fill("10.00");
-    await page.locator("textarea[name='note']").fill("E2E Delete Cashup");
+    await page.locator("input[name='note']").check();
     await page.getByTestId("save-button").click();
     await page.waitForURL("/cashups");
 

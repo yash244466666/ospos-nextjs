@@ -9,6 +9,6 @@ test.describe("Messages", () => {
     await page.locator("input[name='phone']").fill("+8801712345678");
     await page.locator("textarea[name='message']").fill("E2E test message");
     await page.getByTestId("send-button").click();
-    await expect(page.locator("text=SMS provider is stubbed")).toBeVisible();
+    await expect(page.locator("text=SMS parameters are incomplete")).toBeVisible();
   });
 });

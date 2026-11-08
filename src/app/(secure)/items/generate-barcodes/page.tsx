@@ -75,6 +75,7 @@ export default async function GenerateBarcodesPage({
               className="text-xs flex justify-center"
               dangerouslySetInnerHTML={{ __html: barcodes[index].svg }}
             />
+            <div className="text-xs font-semibold text-slate-900 truncate">{item.name}</div>
             {barcodes[index].row1 && <div className="text-xs font-medium mt-1 truncate">{barcodes[index].row1}</div>}
             {barcodes[index].row2 && <div className="text-xs text-slate-600 truncate">{barcodes[index].row2}</div>}
             {barcodes[index].row3 && <div className="text-xs text-slate-500 truncate">{barcodes[index].row3}</div>}

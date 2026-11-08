@@ -64,7 +64,15 @@ const MODULE_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   office: FileSpreadsheet,
 };
 
-export function Sidebar({ modules }: { modules: AllowedModule[] }) {
+export function Sidebar({
+  modules,
+  officeModules = [],
+  labels = {},
+}: {
+  modules: AllowedModule[];
+  officeModules?: AllowedModule[];
+  labels?: Record<string, string>;
+}) {
   const pathname = usePathname();
   const home = modules.find((m) => m.moduleId === "home");
   const office = modules.find((m) => m.moduleId === "office");
@@ -79,16 +87,15 @@ export function Sidebar({ modules }: { modules: AllowedModule[] }) {
         <span className="font-semibold text-lg tracking-tight">OSPOS</span>
       </div>
       <nav className="flex-1 overflow-y-auto py-3 space-y-0.5" aria-label="Main navigation">
-        {home && (
-          <SidebarLink href="/" label="Home" moduleId="home" active={pathname === "/"} />
-        )}
+        <SidebarLink href="/" label={labels.home ?? "Home"} moduleId="home" active={pathname === "/"} />
+        <SidebarLink href="/office" label={labels.office ?? "Office"} moduleId="office" active={pathname === "/office"} />
         {homeMods.map((m) => {
           const href = ROUTE_MAP[m.moduleId] ?? `/${m.moduleId}`;
           return (
             <SidebarLink
               key={m.moduleId}
               href={href}
-              label={m.nameLangKey}
+              label={labels[m.moduleId] ?? m.nameLangKey}
               moduleId={m.moduleId}
               active={pathname?.startsWith(href.split("?")[0]) ?? false}
             />
@@ -99,8 +106,20 @@ export function Sidebar({ modules }: { modules: AllowedModule[] }) {
             <div className="mt-5 px-5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
               Office
             </div>
-            <SidebarLink href="/reports" label="Reports" moduleId="reports" active={pathname?.startsWith("/reports") ?? false} />
-            <SidebarLink href="/config" label="Settings" moduleId="config" active={pathname?.startsWith("/config") ?? false} />
+            {officeModules
+              .filter((m) => m.moduleId !== "home" && m.moduleId !== "office")
+              .map((m) => {
+                const href = ROUTE_MAP[m.moduleId] ?? `/${m.moduleId}`;
+                return (
+                  <SidebarLink
+                    key={m.moduleId}
+                    href={href}
+                    label={labels[m.moduleId] ?? m.nameLangKey}
+                    moduleId={m.moduleId}
+                    active={pathname?.startsWith(href.split("?")[0]) ?? false}
+                  />
+                );
+              })}
           </>
         )}
       </nav>

@@ -10,6 +10,7 @@ interface SerializableReportDef {
   hasDateRange?: boolean;
   columns: { name: string; label: string; align?: "left" | "right" }[];
   chart?: "bar" | "hbar" | "line" | "pie";
+  summary?: Record<string, unknown>;
 }
 
 interface Props {
@@ -80,6 +81,16 @@ export default function ReportView({ def, rows, initialStart, initialEnd }: Prop
           <ChartFor def={def} rows={rows} />
         </div>
       )}
+      {def.summary && Object.keys(def.summary).length > 0 ? (
+        <div className="mb-3 rounded border bg-white p-3 text-sm" data-testid="report-summary">
+          {Object.entries(def.summary).map(([key, value]) => (
+            <div key={key} className="flex justify-between">
+              <span>{key.replace(/_/g, " ")}</span>
+              <span>{fmt(value)}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {rows.length === 0 ? (
         <div className="text-gray-500">No data.</div>
       ) : (

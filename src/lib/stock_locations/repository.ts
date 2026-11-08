@@ -1,4 +1,4 @@
-import { and, asc, eq, like, sql } from "drizzle-orm";
+import { and, asc, desc, eq, like, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import {
@@ -123,7 +123,7 @@ export async function getDefaultLocationId(
         eq(stockLocations.deleted, false),
       ),
     )
-    .orderBy(asc(sql`${stockLocations.isDefault} DESC`), asc(stockLocations.sortOrder))
+    .orderBy(desc(stockLocations.isDefault), asc(stockLocations.sortOrder))
     .limit(1);
   return rows[0]?.locationId ?? null;
 }

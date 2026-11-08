@@ -8,7 +8,7 @@ interface Initial {
   itemKitNumber: string | null;
   name: string;
   description: string | null;
-  kitDiscount: number;
+  kitDiscount: string;
   kitDiscountType: number;
   priceOption: number;
   printOption: number;
@@ -17,7 +17,7 @@ interface Initial {
 interface KitItem {
   kitSequence: number;
   itemId: number;
-  quantity: number;
+  quantity: string | number;
   name: string | null;
   itemNumber: string | null;
 }
@@ -31,7 +31,7 @@ export default function ItemKitForm({ initial, kitItems }: { initial: Initial | 
   const [lines, setLines] = useState<KitItem[]>(
     kitItems.length > 0
       ? kitItems
-      : [{ kitSequence: 1, itemId: 0, quantity: 1, name: null, itemNumber: null }]
+      : [{ kitSequence: 1, itemId: 0, quantity: "1", name: null, itemNumber: null }]
   );
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export default function ItemKitForm({ initial, kitItems }: { initial: Initial | 
 
   function addLine() {
     const nextSeq = lines.length > 0 ? Math.max(...lines.map((l) => l.kitSequence)) + 1 : 1;
-    setLines([...lines, { kitSequence: nextSeq, itemId: 0, quantity: 1, name: null, itemNumber: null }]);
+    setLines([...lines, { kitSequence: nextSeq, itemId: 0, quantity: "1", name: null, itemNumber: null }]);
   }
   function removeLine(idx: number) {
     setLines(lines.filter((_, i) => i !== idx));

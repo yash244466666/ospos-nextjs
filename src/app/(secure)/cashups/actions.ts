@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/auth/with-permission";
-import { deleteCashup, saveCashup, search as searchCashups, getInfo as getCashupInfo, getTotalRows, getEmptyRow } from "@/lib/cashups/repository";
+import { auth } from "@/lib/auth/options";
+import { calculateTotal, deleteCashup, saveCashup, search as searchCashups, getInfo as getCashupInfo, getTotalRows, getEmptyRow } from "@/lib/cashups/repository";
 
 function toDbTimestamp(value: string | null): string | null {
   if (!value) return null;
@@ -13,6 +14,8 @@ function toDbTimestamp(value: string | null): string | null {
 
 export async function saveCashupAction(formData: FormData) {
   await requirePermission("cashups");
+  const session = await auth();
+  if (!session?.user?.personId) throw new Error("not authenticated");
   const cashupId = parseInt((formData.get("cashupId") as string) || "0", 10);
   const openDate = toDbTimestamp(formData.get("openDate") as string);
   const closeDate = toDbTimestamp(formData.get("closeDate") as string);
@@ -20,8 +23,21 @@ export async function saveCashupAction(formData: FormData) {
   const transferAmountCash = parseFloat((formData.get("transferAmountCash") as string) || "0") || 0;
   const closedAmountCash = parseFloat((formData.get("closedAmountCash") as string) || "0") || 0;
   const note = formData.get("note") === "on";
-  const employeeId = parseInt((formData.get("employeeId") as string) || "0", 10) || null;
+  const employeeId = session.user.personId;
   const existing = cashupId > 0 ? await getCashupInfo(cashupId) : null;
+  const closedAmountCard = existing?.closedAmountCard ?? "0";
+  const closedAmountCheck = existing?.closedAmountCheck ?? "0";
+  const closedAmountDue = existing?.closedAmountDue ?? "0";
+  const closedAmountTotal =
+    existing?.closedAmountTotal ??
+    calculateTotal(
+      openAmountCash,
+      transferAmountCash,
+      closedAmountCash,
+      closedAmountDue,
+      closedAmountCard,
+      closedAmountCheck,
+    );
 
   await saveCashup({
     cashupId,
@@ -30,10 +46,10 @@ export async function saveCashupAction(formData: FormData) {
     openAmountCash: String(openAmountCash),
     transferAmountCash: String(transferAmountCash),
     closedAmountCash: String(closedAmountCash),
-    closedAmountCard: existing?.closedAmountCard ?? "0",
-    closedAmountCheck: existing?.closedAmountCheck ?? "0",
-    closedAmountTotal: existing?.closedAmountTotal ?? "0",
-    closedAmountDue: existing?.closedAmountDue ?? "0",
+    closedAmountCard,
+    closedAmountCheck,
+    closedAmountTotal,
+    closedAmountDue,
     description: existing?.description ?? "",
     note,
     employeeId,
