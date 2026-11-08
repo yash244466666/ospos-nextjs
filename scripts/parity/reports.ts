@@ -28,6 +28,7 @@ async function main(): Promise<void> {
   }
   if (differences.length > 0) fail(differences, `Report execution (${DRIVER})`);
   ok(`Report execution PASS (${DRIVER}): ${REPORTS.length} report keys`);
+  process.exit(0);
 }
 
 main().catch((error: unknown) => {

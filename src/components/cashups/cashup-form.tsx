@@ -10,6 +10,11 @@ interface Initial {
   openAmountCash: string;
   transferAmountCash: string;
   closedAmountCash: string;
+  closedAmountDue: string;
+  closedAmountCard: string;
+  closedAmountCheck: string;
+  closedAmountTotal: string;
+  description: string;
   note: boolean;
   employeeId: number | null;
   deleted: boolean;
@@ -50,6 +55,22 @@ export default function CashupForm({ initial, employees }: { initial: Initial | 
       <div>
         <label className="block text-sm">Closed Cash</label>
         <input type="number" step="0.01" name="closedAmountCash" defaultValue={initial?.closedAmountCash ?? "0"} className="border px-2 py-1 w-full" />
+      </div>
+      <div>
+        <label className="block text-sm">Closed Due</label>
+        <input type="number" step="0.01" name="closedAmountDue" defaultValue={initial?.closedAmountDue ?? "0"} className="border px-2 py-1 w-full" />
+      </div>
+      <div>
+        <label className="block text-sm">Closed Card</label>
+        <input type="number" step="0.01" name="closedAmountCard" defaultValue={initial?.closedAmountCard ?? "0"} className="border px-2 py-1 w-full" />
+      </div>
+      <div>
+        <label className="block text-sm">Closed Check</label>
+        <input type="number" step="0.01" name="closedAmountCheck" defaultValue={initial?.closedAmountCheck ?? "0"} className="border px-2 py-1 w-full" />
+      </div>
+      <div>
+        <label className="block text-sm">Closed Total (calculated)</label>
+        <input type="text" name="closedAmountTotal" readOnly defaultValue={initial?.closedAmountTotal ?? "0"} className="border px-2 py-1 w-full bg-slate-50" />
       </div>
       <div>
         <label className="block text-sm">Employee</label>

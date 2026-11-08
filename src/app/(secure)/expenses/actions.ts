@@ -14,10 +14,13 @@ export async function saveExpenseAction(formData: FormData) {
   const id = formData.get("expenseId") as string;
   const amount = parseFloat((formData.get("amount") as string) || "0") || 0;
   if (amount <= 0) throw new Error("Amount must be positive");
+  const expenseCategoryId =
+    parseInt((formData.get("expenseCategoryId") as string) || "0", 10) || 0;
+  if (!expenseCategoryId) throw new Error("Expense category is required");
   const data: typeof expenses.$inferInsert = {
     amount: toDbDecimal(amount, 2),
     paymentType: (formData.get("paymentType") as string) || "cash",
-    expenseCategoryId: parseInt((formData.get("expenseCategoryId") as string) || "0", 10) || 0,
+    expenseCategoryId,
     description: (formData.get("description") as string) || "",
     employeeId: session!.user.personId as number,
   };

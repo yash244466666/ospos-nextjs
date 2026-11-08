@@ -94,3 +94,13 @@ export async function resetCart(page: Page): Promise<void> {
   await page.goto("/sales/register");
   await page.waitForSelector("[data-testid='cart-table']");
 }
+
+
+export async function createTestExpenseCategory(page: Page, name: string): Promise<void> {
+  await page.goto("/expenses_categories/new/0");
+  await page.locator("input[name='category']").fill(name);
+  await page.locator("textarea[name='description']").fill(name);
+  await page.getByTestId("save-button").click();
+  await page.waitForURL(/\/expenses_categories$/);
+  await waitForTableRow(page, name);
+}

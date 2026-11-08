@@ -10,6 +10,10 @@ export default async function ChangePasswordPage() {
       <h1 className="text-2xl font-bold mb-4">Change Password</h1>
       <form action={changePasswordAction} className="space-y-4 bg-white p-6 rounded shadow-sm">
         <div>
+          <label className="block text-sm font-medium mb-1">Current Password</label>
+          <input name="current_password" type="password" required className="w-full border rounded px-3 py-2" />
+        </div>
+        <div>
           <label className="block text-sm font-medium mb-1">New Password</label>
           <input name="new_password" type="password" required className="w-full border rounded px-3 py-2" />
         </div>

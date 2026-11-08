@@ -18,17 +18,25 @@ async function main(): Promise<void> {
       });
     }
   }
+  // Upstream's integrations tab writes these optional keys on demand; they
+  // are not part of the 138-key default seed.
+  const OPTIONAL_KEYS = new Set(["mailchimp_api_key", "mailchimp_list_id"]);
   for (const key of byKey.keys()) {
-    if (!(key in APP_CONFIG_DEFAULTS)) {
+    if (!(key in APP_CONFIG_DEFAULTS) && !OPTIONAL_KEYS.has(key)) {
       differences.push({ table: "app_config", issue: `unexpected ${key}` });
     }
   }
 
-  if (rows.length !== 138) {
-    differences.push({ table: "app_config", issue: `row count ${rows.length} != 138` });
+  const expectedCount = Object.keys(APP_CONFIG_DEFAULTS).length;
+  const missingOptional = [...byKey.keys()].filter((key) => OPTIONAL_KEYS.has(key)).length;
+  if (rows.length !== expectedCount + missingOptional) {
+    differences.push({
+      table: "app_config",
+      issue: `row count ${rows.length} != ${expectedCount + missingOptional}`,
+    });
   }
   if (differences.length > 0) fail(differences, `Config key parity (${DRIVER})`);
-  ok(`Config key parity PASS (${DRIVER}): 138 keys`);
+  ok(`Config key parity PASS (${DRIVER}): ${expectedCount} seeded keys`);
 }
 
 main().catch((error: unknown) => {

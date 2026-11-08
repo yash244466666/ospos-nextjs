@@ -7,10 +7,10 @@ import type { ConfigTab } from "@/lib/config/tabs";
 interface Props {
   tabs: ConfigTab[];
   values: Record<string, string>;
-  encryptedValues: Record<string, string>;
+  secretsSet: Record<string, boolean>;
 }
 
-export default function ConfigTabs({ tabs, values, encryptedValues }: Props) {
+export default function ConfigTabs({ tabs, values, secretsSet }: Props) {
   const [active, setActive] = useState(tabs[0]?.key ?? "");
   const [pending, start] = useTransition();
   const [status, setStatus] = useState<string | null>(null);
@@ -37,7 +37,8 @@ export default function ConfigTabs({ tabs, values, encryptedValues }: Props) {
       {tab && (
         <form action={submit} className="space-y-3" key={active}>
           {tab.fields.map((f) => {
-            const val = f.encrypted ? encryptedValues[f.key] ?? "" : values[f.key] ?? "";
+            const val = values[f.key] ?? "";
+            const secretSet = f.encrypted && secretsSet[f.key];
             return (
               <div key={f.key}>
                 <label className="block text-sm mb-1">{f.label}</label>
@@ -51,7 +52,7 @@ export default function ConfigTabs({ tabs, values, encryptedValues }: Props) {
                   </select>
                 ) : (
                   <input type={f.type === "password" ? "password" : f.type === "number" ? "number" : "text"}
-                    name={f.key} defaultValue={val} placeholder={f.placeholder} className="border px-2 py-1 w-full" />
+                    name={f.key} defaultValue={val} placeholder={secretSet ? "Already set — leave blank to keep" : f.placeholder} className="border px-2 py-1 w-full" />
                 )}
               </div>
             );

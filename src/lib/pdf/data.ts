@@ -1,17 +1,18 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { people, customers } from "@/db/schema";
+import { people, customers, items } from "@/db/schema";
 import { getSale, getSaleItems, getSalePayments, getSaleTaxes } from "@/lib/sale/sale-model";
-import { dateFormat, getConfig, loadConfig, timeFormat } from "@/lib/config";
+import { dateFormat, getConfig, getConfigBool, loadConfig, timeFormat } from "@/lib/config";
+import { getItemDiscount, getItemTotal } from "@/lib/sale/types";
 import { formatDb } from "@/lib/datetime";
-import { abs, bcMul, bcSum } from "@/lib/money";
+import { abs, bcMul, bcSum, dec } from "@/lib/money";
 import type { ReceiptData } from "./receipt";
 
 export async function buildReceiptData(saleId: number): Promise<ReceiptData | null> {
   await loadConfig();
   const sale = await getSale(saleId);
   if (!sale) return null;
-  const items = await getSaleItems(saleId);
+  const saleItems = await getSaleItems(saleId);
   const payments = await getSalePayments(saleId);
   const taxes = await getSaleTaxes(saleId);
   const db = await getDb();
@@ -26,10 +27,32 @@ export async function buildReceiptData(saleId: number): Promise<ReceiptData | nu
     const c = rows[0];
     if (c) customerName = c.company || `${c.first} ${c.last}`.trim();
   }
-  const total = Number(
-    bcSum(items.map((i) => bcMul(i.itemUnitPrice, abs(i.quantityPurchased)))).toFixed(),
+  const itemRows = await db
+    .select({ itemId: items.itemId, name: items.name, itemNumber: items.itemNumber })
+    .from(items);
+  const itemById = new Map(itemRows.map((item) => [item.itemId, item]));
+
+  let base = "0";
+  let includedTax = "0";
+  let excludedTax = "0";
+  for (const item of saleItems) {
+    base = bcSum([base, getItemTotal(item.quantityPurchased, item.itemUnitPrice, item.discount, item.discountType, true)]).toFixed();
+  }
+  for (const tax of taxes) {
+    if (tax.taxType === 0) includedTax = bcSum([includedTax, tax.saleTaxAmount]).toFixed();
+    else excludedTax = bcSum([excludedTax, tax.saleTaxAmount]).toFixed();
+  }
+  const taxIncluded = getConfigBool("tax_included", false);
+  const subtotal = taxIncluded ? Number(base) - Number(includedTax) : Number(base);
+  const total = taxIncluded ? Number(base) : Number(base) + Number(excludedTax);
+  const paid = Number(
+    bcSum(
+      payments
+        .filter((payment) => !payment.cashAdjustment)
+        .map((payment) => bcSum([payment.paymentAmount, bcMul(payment.cashRefund, "-1")])),
+    ).toFixed(),
   );
-  const paid = Number(bcSum(payments.map((p) => p.paymentAmount)).toFixed());
+
   return {
     company: getConfig("company", ""),
     address: getConfig("address", ""),
@@ -37,14 +60,29 @@ export async function buildReceiptData(saleId: number): Promise<ReceiptData | nu
     saleId: sale.saleId,
     saleTime: sale.saleTime ? formatDb(sale.saleTime, `${dateFormat()} ${timeFormat()}`) : "",
     customerName,
-    lines: items.map((it) => ({
-      description: it.description ?? "",
-      quantity: Number(abs(it.quantityPurchased)),
-      unitPrice: Number(it.itemUnitPrice),
+    lines: saleItems.map((it) => {
+      const item = itemById.get(it.itemId);
+      const description = it.description?.trim() ? it.description : (item?.name ?? "");
+      return {
+        description,
+        itemNumber: item?.itemNumber ?? "",
+        quantity: Number(it.quantityPurchased),
+        unitPrice: Number(it.itemUnitPrice),
+        discount: Number(getItemDiscount(it.quantityPurchased, it.itemUnitPrice, it.discount, it.discountType)),
+        total: Number(getItemTotal(it.quantityPurchased, it.itemUnitPrice, it.discount, it.discountType, true)),
+      };
+    }),
+    taxes: taxes.map((tax) => ({
+      name: tax.taxGroup,
+      amount: Number(tax.saleTaxAmount),
+      taxType: tax.taxType,
     })),
-    taxes: taxes.map((t) => ({ name: t.taxGroup, amount: Number(t.saleTaxAmount) })),
+    subtotal,
     total,
-    payments: payments.map((p) => ({ type: p.paymentType, amount: Number(p.paymentAmount) })),
+    payments: payments.map((payment) => ({
+      type: payment.paymentType,
+      amount: -Number(bcSum([payment.paymentAmount, bcMul(payment.cashRefund, "-1")])),
+    })),
     change: paid - total,
   };
 }

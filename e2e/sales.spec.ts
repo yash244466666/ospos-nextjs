@@ -14,7 +14,7 @@ test.describe("Sales register", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/sales/register");
     const cancel = page.getByTestId("cancel-sale-button");
-    if (await cancel.isVisible().catch(() => false)) {
+    if (await cancel.isEnabled().catch(() => false)) {
       await cancel.click();
       await page.waitForURL("/sales/register");
     }

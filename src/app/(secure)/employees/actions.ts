@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/auth/with-permission";
 import { auth } from "@/lib/auth/options";
 import { isAdmin } from "@/lib/auth/rbac";
 import { hash } from "bcryptjs";
+import { checkPassword } from "@/lib/auth/password";
 import {
   saveEmployee, deleteEmployee, searchEmployees, getEmployee,
   usernameExists, listAllPermissions, listEmployeeGrants,
@@ -92,11 +93,13 @@ export async function changePasswordAction(oldPassword: string, newPassword: str
   const session = await requirePermission("home");
   const { changePassword } = await import("@/lib/employees/repository");
   const { verifyPassword } = await import("@/lib/auth/password");
-  const emp = await getEmployee(session!.user.personId as number);
-  if (!emp) throw new Error("Employee not found");
-  if (!(await verifyPassword(oldPassword, emp.password))) throw new Error("Old password incorrect");
+  const username = session!.user.name ?? "";
+  if (!username || !(await checkPassword(username, oldPassword))) {
+    throw new Error("Old password incorrect");
+  }
+  if (newPassword.length < 8) throw new Error("Password must be at least 8 characters");
   const hashed = await hash(newPassword, 10);
-  await changePassword(session!.user.personId as number, hashed);
+  await changePassword(session!.user.personId as number, hashed, 2);
   return { ok: true };
 }
 

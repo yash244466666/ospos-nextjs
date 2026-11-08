@@ -21,17 +21,16 @@ services:
       - /var/lib/mysql
 
   oracle:
-    build:
-      context: .
-      dockerfile: Dockerfile.oracle
-      additional_contexts:
-        oracle: /home/yash/ospos
+    # Build with scripts/parity/build-oracle.sh (classic builder, staged
+    # read-only copy of upstream) because additional contexts need buildx.
+    image: parity-oracle:local
     depends_on:
       mysql:
         condition: service_healthy
     environment:
       CI_ENVIRONMENT: production
       app.baseURL: http://oracle/
+      ALLOWED_HOSTNAMES: oracle,localhost,localhost:8088,127.0.0.1
       DB_HOST: mysql
     ports:
       - "8088:80"

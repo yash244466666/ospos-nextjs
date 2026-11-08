@@ -33,7 +33,7 @@ export async function deleteCategoryAction(id: number) {
   revalidatePath("/expenses_categories");
 }
 import { getAll as listAll, getInfo as info, search, getTotalRows } from "@/lib/expenses_categories/repository";
-export async function searchCategoriesAction(term: string) { await requirePermission("expense_categories"); return search(term); }
-export async function getCategoryRowAction(id: number) { await requirePermission("expense_categories"); return info(id); }
+export async function searchCategoriesAction(term: string) { await requirePermission("expenses_categories"); return search(term); }
+export async function getCategoryRowAction(id: number) { await requirePermission("expenses_categories"); return info(id); }
 export async function getCategoryTotalRowsAction() { return getTotalRows(); }
 export { listAll };

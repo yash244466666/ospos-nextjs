@@ -28,7 +28,7 @@ export function ReceiptDefaultDocument({ data }: { data: ReceiptData }) {
         {data.lines.map((l, i) => (
           <View key={i} style={styles.row}>
             <Text>{l.description} × {l.quantity}</Text>
-            <Text>{(l.unitPrice * l.quantity).toFixed(2)}</Text>
+            <Text>{(l.total ?? l.unitPrice * l.quantity).toFixed(2)}</Text>
           </View>
         ))}
         <View style={styles.divider} />

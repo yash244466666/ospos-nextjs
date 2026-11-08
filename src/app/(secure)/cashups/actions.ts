@@ -22,22 +22,21 @@ export async function saveCashupAction(formData: FormData) {
   const openAmountCash = parseFloat((formData.get("openAmountCash") as string) || "0") || 0;
   const transferAmountCash = parseFloat((formData.get("transferAmountCash") as string) || "0") || 0;
   const closedAmountCash = parseFloat((formData.get("closedAmountCash") as string) || "0") || 0;
+  const closedAmountDue = parseFloat((formData.get("closedAmountDue") as string) || "0") || 0;
+  const closedAmountCard = parseFloat((formData.get("closedAmountCard") as string) || "0") || 0;
+  const closedAmountCheck = parseFloat((formData.get("closedAmountCheck") as string) || "0") || 0;
+  const description = (formData.get("description") as string) || "";
   const note = formData.get("note") === "on";
   const employeeId = session.user.personId;
   const existing = cashupId > 0 ? await getCashupInfo(cashupId) : null;
-  const closedAmountCard = existing?.closedAmountCard ?? "0";
-  const closedAmountCheck = existing?.closedAmountCheck ?? "0";
-  const closedAmountDue = existing?.closedAmountDue ?? "0";
-  const closedAmountTotal =
-    existing?.closedAmountTotal ??
-    calculateTotal(
-      openAmountCash,
-      transferAmountCash,
-      closedAmountCash,
-      closedAmountDue,
-      closedAmountCard,
-      closedAmountCheck,
-    );
+  const closedAmountTotal = calculateTotal(
+    openAmountCash,
+    transferAmountCash,
+    closedAmountCash,
+    closedAmountDue,
+    closedAmountCard,
+    closedAmountCheck,
+  );
 
   await saveCashup({
     cashupId,
@@ -46,11 +45,11 @@ export async function saveCashupAction(formData: FormData) {
     openAmountCash: String(openAmountCash),
     transferAmountCash: String(transferAmountCash),
     closedAmountCash: String(closedAmountCash),
-    closedAmountCard,
-    closedAmountCheck,
+    closedAmountCard: String(closedAmountCard),
+    closedAmountCheck: String(closedAmountCheck),
     closedAmountTotal,
-    closedAmountDue,
-    description: existing?.description ?? "",
+    closedAmountDue: String(closedAmountDue),
+    description,
     note,
     employeeId,
   });

@@ -1,7 +1,11 @@
 import { test, expect } from "./fixtures";
-import { acceptDialogs, waitForTableRow } from "./helpers";
+import { acceptDialogs, createTestExpenseCategory, waitForTableRow } from "./helpers";
 
 test.describe("Expenses", () => {
+  test.beforeAll(async ({ page }) => {
+    await createTestExpenseCategory(page, "E2E Expense Category");
+  });
+
   test("list page loads and can create an expense", async ({ page }) => {
     await page.goto("/expenses");
     await expect(page.getByRole("heading", { name: "Expenses" })).toBeVisible();
@@ -10,6 +14,7 @@ test.describe("Expenses", () => {
     await page.getByTestId("new-button").click();
     await page.waitForURL("/expenses/new/0");
     await page.locator("input[name='amount']").fill("12.50");
+    await page.locator("select[name='expenseCategoryId']").selectOption({ label: "E2E Expense Category" });
     await page.locator("select[name='paymentType']").selectOption("credit");
     await page.locator("textarea[name='description']").fill("E2E expense note");
     await page.getByTestId("save-button").click();
@@ -19,6 +24,7 @@ test.describe("Expenses", () => {
 
   test("edits an expense", async ({ page }) => {
     await page.goto("/expenses/new/0");
+    await page.locator("select[name='expenseCategoryId']").selectOption({ label: "E2E Expense Category" });
     await page.locator("input[name='amount']").fill("25.00");
     await page.locator("textarea[name='description']").fill("E2E Edit Expense");
     await page.getByTestId("save-button").click();
@@ -36,6 +42,7 @@ test.describe("Expenses", () => {
   test("deletes an expense after confirmation", async ({ page }) => {
     acceptDialogs(page);
     await page.goto("/expenses/new/0");
+    await page.locator("select[name='expenseCategoryId']").selectOption({ label: "E2E Expense Category" });
     await page.locator("input[name='amount']").fill("5.00");
     await page.locator("textarea[name='description']").fill("E2E Delete Expense");
     await page.getByTestId("save-button").click();

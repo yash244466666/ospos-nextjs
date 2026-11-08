@@ -1,5 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { getDb, IS_SQLITE } from "@/lib/db";
+import { withTransaction } from "@/lib/db/transaction";
 import { appConfig } from "@/db/schema";
 import { ENCRYPTED_KEYS } from "./tabs";
 import { decrypt as decryptConfig } from "@/lib/encryption";
@@ -80,8 +81,7 @@ export async function setConfig(key: string, value: string): Promise<void> {
 }
 
 export async function setConfigBatch(values: Record<string, string>): Promise<void> {
-  const db = await getDb();
-  await db.transaction(async (tx) => {
+  await withTransaction(async (tx) => {
     for (const [key, value] of Object.entries(values)) {
       await tx
         .insert(appConfig)
