@@ -50,6 +50,9 @@ export async function SaleDocument({
   const title = lang(TITLE_KEYS[kind]);
   const printableLines = data.lines.filter((line) => line.printOption === 0);
   const rowClassName = "border-t border-slate-200";
+  // Sale_lib::get_all_receipt_templates / _load_sale_data: unknown templates
+  // fall back to receipt_default.
+  const short = kind === "receipt" && flags.template === "receipt_short";
 
   return (
     <div className="mx-auto max-w-2xl p-4">
@@ -93,10 +96,10 @@ export async function SaleDocument({
         <thead className="bg-slate-100">
           <tr>
             <th className="p-2 text-left">{lang("Sales.description_abbrv")}</th>
-            <th className="p-2 text-right">{lang("Sales.price")}</th>
+            {!short ? <th className="p-2 text-right">{lang("Sales.price")}</th> : null}
             <th className="p-2 text-right">{lang("Sales.quantity")}</th>
             <th className="p-2 text-right">{lang("Sales.total")}</th>
-            {flags.showTaxInd ? <th className="p-2 text-left">T</th> : null}
+            {!short && flags.showTaxInd ? <th className="p-2 text-left">T</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -114,18 +117,18 @@ export async function SaleDocument({
                   <div className="text-[11px] text-slate-500">{line.serialnumber}</div>
                 ) : null}
               </td>
-              <td className="p-2 text-right">{toCurrency(line.price)}</td>
+              {!short ? <td className="p-2 text-right">{toCurrency(line.price)}</td> : null}
               <td className="p-2 text-right">{toQuantityDecimals(line.quantity)}</td>
               <td className="p-2 text-right">
                 {toCurrency(flags.showTotalDiscount ? line.total : line.discountedTotal)}
               </td>
-              {flags.showTaxInd ? <td className="p-2">{line.taxedFlag}</td> : null}
+              {!short && flags.showTaxInd ? <td className="p-2">{line.taxedFlag}</td> : null}
             </tr>
           ))}
           {printableLines.map((line) =>
             Number(line.discount) > 0 ? (
               <tr key={`discount-${line.line}`} className={rowClassName}>
-                <td className="p-2 text-slate-600" colSpan={3}>
+                <td className="p-2 text-slate-600" colSpan={short ? 2 : 3}>
                   {line.discountType === DISCOUNT_TYPE.FIXED
                     ? `${toCurrency(line.discount)} ${lang("Sales.discount")}`
                     : `${toDecimals(line.discount)} ${lang("Sales.discount_included")}`}
@@ -177,21 +180,15 @@ export async function SaleDocument({
                 {payment.type}
                 {payment.referenceCode ? ` (${payment.referenceCode})` : ""}
               </span>
-              <span>{toCurrency(payment.amount)}</span>
+              <span>{toCurrency(`-${payment.amount}`)}</span>
             </div>
           ))}
-          {!isZero(data.change) ? (
-            <div className="flex justify-between">
-              <span>{lang("Sales.change_due")}</span>
-              <span>{toCurrency(data.change)}</span>
-            </div>
-          ) : null}
-          {!isZero(data.amountDue) ? (
-            <div className="flex justify-between">
-              <span>{lang("Sales.amount_due")}</span>
-              <span>{toCurrency(data.amountDue)}</span>
-            </div>
-          ) : null}
+          <div className="flex justify-between">
+            <span>
+              {Number(data.change) >= 0 ? lang("Sales.change_due") : lang("Sales.amount_due")}
+            </span>
+            <span>{toCurrency(data.change)}</span>
+          </div>
         </div>
       </div>
 

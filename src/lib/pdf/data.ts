@@ -250,12 +250,11 @@ export async function buildSaleDocumentData(saleId: number): Promise<SaleDocumen
     total: moneyString(total, totalsDecimals),
     amountDue: moneyString(amountDue, totalsDecimals),
     change: moneyString(change, totalsDecimals),
+    // The upstream receipt prints `payment_amount * -1` (quirk kept for parity)
+    // and splits `Gift Card:1234` to show only the payment type.
     payments: payments.map((payment) => ({
-      type: payment.paymentType,
-      amount: moneyString(
-        bcSum([payment.paymentAmount, bcMul(payment.cashRefund, "-1")]).toFixed(),
-        totalsDecimals,
-      ),
+      type: payment.paymentType.split(":")[0] ?? payment.paymentType,
+      amount: moneyString(payment.paymentAmount, totalsDecimals),
       referenceCode: payment.referenceCode ?? "",
     })),
     flags: {
