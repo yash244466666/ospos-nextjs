@@ -1,11 +1,11 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "aab1336e-0297-40a6-8118-568e81047b17",
+  "id": "4d2a528a-97d4-4457-801d-997e40edfc0a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
-    "app_config": {
-      "name": "app_config",
+    "ospos_app_config": {
+      "name": "ospos_app_config",
       "columns": {
         "key": {
           "name": "key",
@@ -25,8 +25,8 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "app_config_key": {
-          "name": "app_config_key",
+        "ospos_app_config_key": {
+          "name": "ospos_app_config_key",
           "columns": [
             "key"
           ]
@@ -35,8 +35,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "attribute_definitions": {
-      "name": "attribute_definitions",
+    "ospos_attribute_definitions": {
+      "name": "ospos_attribute_definitions",
       "columns": {
         "definition_id": {
           "name": "definition_id",
@@ -54,14 +54,14 @@
         },
         "definition_type": {
           "name": "definition_type",
-          "type": "varchar(255)",
+          "type": "varchar(45)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "definition_unit": {
           "name": "definition_unit",
-          "type": "varchar(255)",
+          "type": "varchar(16)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -71,8 +71,7 @@
           "type": "tinyint",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": 0
+          "autoincrement": false
         },
         "definition_fk": {
           "name": "definition_fk",
@@ -83,18 +82,54 @@
         },
         "deleted": {
           "name": "deleted",
-          "type": "tinyint",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": false
         }
       },
-      "indexes": {},
-      "foreignKeys": {},
+      "indexes": {
+        "definition_fk": {
+          "name": "definition_fk",
+          "columns": [
+            "definition_fk"
+          ],
+          "isUnique": false
+        },
+        "definition_name": {
+          "name": "definition_name",
+          "columns": [
+            "definition_name"
+          ],
+          "isUnique": false
+        },
+        "definition_type": {
+          "name": "definition_type",
+          "columns": [
+            "definition_type"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "fk_ospos_attribute_definitions_ibfk_1": {
+          "name": "fk_ospos_attribute_definitions_ibfk_1",
+          "tableFrom": "ospos_attribute_definitions",
+          "tableTo": "ospos_attribute_definitions",
+          "columnsFrom": [
+            "definition_fk"
+          ],
+          "columnsTo": [
+            "definition_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {
-        "attribute_definitions_definition_id": {
-          "name": "attribute_definitions_definition_id",
+        "ospos_attribute_definitions_definition_id": {
+          "name": "ospos_attribute_definitions_definition_id",
           "columns": [
             "definition_id"
           ]
@@ -103,8 +138,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "attribute_links": {
-      "name": "attribute_links",
+    "ospos_attribute_links": {
+      "name": "ospos_attribute_links",
       "columns": {
         "attribute_id": {
           "name": "attribute_id",
@@ -148,14 +183,71 @@
           "notNull": false,
           "autoincrement": false,
           "generated": {
-            "as": "CONCAT(definition_id, '-', item_id)",
+            "as": "CASE WHEN `sale_id` IS NULL AND `receiving_id` IS NULL AND `item_id` IS NOT NULL THEN CONCAT(`definition_id`, '-', `item_id`) ELSE NULL END",
             "type": "stored"
           }
         }
       },
       "indexes": {
-        "attribute_links_generated_unique_column_idx": {
-          "name": "attribute_links_generated_unique_column_idx",
+        "attribute_id": {
+          "name": "attribute_id",
+          "columns": [
+            "attribute_id"
+          ],
+          "isUnique": false
+        },
+        "definition_id": {
+          "name": "definition_id",
+          "columns": [
+            "definition_id"
+          ],
+          "isUnique": false
+        },
+        "item_id": {
+          "name": "item_id",
+          "columns": [
+            "item_id"
+          ],
+          "isUnique": false
+        },
+        "sale_id": {
+          "name": "sale_id",
+          "columns": [
+            "sale_id"
+          ],
+          "isUnique": false
+        },
+        "receiving_id": {
+          "name": "receiving_id",
+          "columns": [
+            "receiving_id"
+          ],
+          "isUnique": false
+        },
+        "attribute_links_uq1": {
+          "name": "attribute_links_uq1",
+          "columns": [
+            "attribute_id",
+            "definition_id",
+            "item_id",
+            "sale_id",
+            "receiving_id"
+          ],
+          "isUnique": true
+        },
+        "attribute_links_uq2": {
+          "name": "attribute_links_uq2",
+          "columns": [
+            "item_id",
+            "receiving_id",
+            "sale_id",
+            "definition_id",
+            "attribute_id"
+          ],
+          "isUnique": true
+        },
+        "attribute_links_uq3": {
+          "name": "attribute_links_uq3",
           "columns": [
             "generated_unique_column"
           ],
@@ -163,43 +255,69 @@
         }
       },
       "foreignKeys": {
-        "attribute_links_attribute_id_attribute_values_attribute_id_fk": {
-          "name": "attribute_links_attribute_id_attribute_values_attribute_id_fk",
-          "tableFrom": "attribute_links",
-          "tableTo": "attribute_values",
-          "columnsFrom": [
-            "attribute_id"
-          ],
-          "columnsTo": [
-            "attribute_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "attribute_links_definition_id_attribute_definitions_definition_id_fk": {
-          "name": "attribute_links_definition_id_attribute_definitions_definition_id_fk",
-          "tableFrom": "attribute_links",
-          "tableTo": "attribute_definitions",
+        "ospos_attribute_links_ibfk_1": {
+          "name": "ospos_attribute_links_ibfk_1",
+          "tableFrom": "ospos_attribute_links",
+          "tableTo": "ospos_attribute_definitions",
           "columnsFrom": [
             "definition_id"
           ],
           "columnsTo": [
             "definition_id"
           ],
-          "onDelete": "no action",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "attribute_links_item_id_items_item_id_fk": {
-          "name": "attribute_links_item_id_items_item_id_fk",
-          "tableFrom": "attribute_links",
-          "tableTo": "items",
+        "ospos_attribute_links_ibfk_2": {
+          "name": "ospos_attribute_links_ibfk_2",
+          "tableFrom": "ospos_attribute_links",
+          "tableTo": "ospos_attribute_values",
+          "columnsFrom": [
+            "attribute_id"
+          ],
+          "columnsTo": [
+            "attribute_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "ospos_attribute_links_ibfk_3": {
+          "name": "ospos_attribute_links_ibfk_3",
+          "tableFrom": "ospos_attribute_links",
+          "tableTo": "ospos_items",
           "columnsFrom": [
             "item_id"
           ],
           "columnsTo": [
             "item_id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ospos_attribute_links_ibfk_4": {
+          "name": "ospos_attribute_links_ibfk_4",
+          "tableFrom": "ospos_attribute_links",
+          "tableTo": "ospos_receivings",
+          "columnsFrom": [
+            "receiving_id"
+          ],
+          "columnsTo": [
+            "receiving_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ospos_attribute_links_ibfk_5": {
+          "name": "ospos_attribute_links_ibfk_5",
+          "tableFrom": "ospos_attribute_links",
+          "tableTo": "ospos_sales",
+          "columnsFrom": [
+            "sale_id"
+          ],
+          "columnsTo": [
+            "sale_id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -207,8 +325,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "attribute_values": {
-      "name": "attribute_values",
+    "ospos_attribute_values": {
+      "name": "ospos_attribute_values",
       "columns": {
         "attribute_id": {
           "name": "attribute_id",
@@ -219,31 +337,53 @@
         },
         "attribute_value": {
           "name": "attribute_value",
-          "type": "text",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "attribute_date": {
           "name": "attribute_date",
-          "type": "varchar(255)",
+          "type": "date",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "attribute_decimal": {
           "name": "attribute_decimal",
-          "type": "decimal(15,4)",
+          "type": "decimal(7,3)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "attribute_value": {
+          "name": "attribute_value",
+          "columns": [
+            "attribute_value"
+          ],
+          "isUnique": true
+        },
+        "attribute_date": {
+          "name": "attribute_date",
+          "columns": [
+            "attribute_date"
+          ],
+          "isUnique": true
+        },
+        "attribute_decimal": {
+          "name": "attribute_decimal",
+          "columns": [
+            "attribute_decimal"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "attribute_values_attribute_id": {
-          "name": "attribute_values_attribute_id",
+        "ospos_attribute_values_attribute_id": {
+          "name": "ospos_attribute_values_attribute_id",
           "columns": [
             "attribute_id"
           ]
@@ -252,53 +392,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "cart_sessions": {
-      "name": "cart_sessions",
-      "columns": {
-        "session_id": {
-          "name": "session_id",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "person_id": {
-          "name": "person_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "data": {
-          "name": "data",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "cart_sessions_session_id": {
-          "name": "cart_sessions_session_id",
-          "columns": [
-            "session_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraint": {}
-    },
-    "cashups": {
-      "name": "cashups",
+    "ospos_cash_up": {
+      "name": "ospos_cash_up",
       "columns": {
         "cashup_id": {
           "name": "cashup_id",
@@ -309,73 +404,142 @@
         },
         "open_date": {
           "name": "open_date",
-          "type": "int",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
         },
         "close_date": {
           "name": "close_date",
-          "type": "int",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "open_amount_cash": {
           "name": "open_amount_cash",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,2)",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
+          "autoincrement": false
         },
         "transfer_amount_cash": {
           "name": "transfer_amount_cash",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,2)",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
-        },
-        "closed_amount_cash": {
-          "name": "closed_amount_cash",
-          "type": "decimal(15,4)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
+          "autoincrement": false
         },
         "note": {
           "name": "note",
-          "type": "text",
+          "type": "boolean",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "closed_amount_cash": {
+          "name": "closed_amount_cash",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": true,
           "autoincrement": false
         },
-        "employee_id": {
-          "name": "employee_id",
+        "closed_amount_card": {
+          "name": "closed_amount_card",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "closed_amount_check": {
+          "name": "closed_amount_check",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "closed_amount_total": {
+          "name": "closed_amount_total",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "description": {
+          "name": "description",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "open_employee_id": {
+          "name": "open_employee_id",
           "type": "int",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "close_employee_id": {
+          "name": "close_employee_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
           "autoincrement": false
         },
         "deleted": {
           "name": "deleted",
-          "type": "tinyint",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": false
+        },
+        "closed_amount_due": {
+          "name": "closed_amount_due",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "open_employee_id": {
+          "name": "open_employee_id",
+          "columns": [
+            "open_employee_id"
+          ],
+          "isUnique": false
+        },
+        "close_employee_id": {
+          "name": "close_employee_id",
+          "columns": [
+            "close_employee_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
-        "cashups_employee_id_employees_person_id_fk": {
-          "name": "cashups_employee_id_employees_person_id_fk",
-          "tableFrom": "cashups",
-          "tableTo": "employees",
+        "ospos_cash_up_ibfk_1": {
+          "name": "ospos_cash_up_ibfk_1",
+          "tableFrom": "ospos_cash_up",
+          "tableTo": "ospos_employees",
           "columnsFrom": [
-            "employee_id"
+            "open_employee_id"
+          ],
+          "columnsTo": [
+            "person_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ospos_cash_up_ibfk_2": {
+          "name": "ospos_cash_up_ibfk_2",
+          "tableFrom": "ospos_cash_up",
+          "tableTo": "ospos_employees",
+          "columnsFrom": [
+            "close_employee_id"
           ],
           "columnsTo": [
             "person_id"
@@ -385,8 +549,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "cashups_cashup_id": {
-          "name": "cashups_cashup_id",
+        "ospos_cash_up_cashup_id": {
+          "name": "ospos_cash_up_cashup_id",
           "columns": [
             "cashup_id"
           ]
@@ -395,67 +559,55 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "customer_rewards": {
-      "name": "customer_rewards",
+    "ospos_customers_packages": {
+      "name": "ospos_customers_packages",
       "columns": {
-        "customer_id": {
-          "name": "customer_id",
+        "package_id": {
+          "name": "package_id",
           "type": "int",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": true
+        },
+        "package_name": {
+          "name": "package_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
-        "reward_id": {
-          "name": "reward_id",
-          "type": "int",
+        "points_percent": {
+          "name": "points_percent",
+          "type": "float",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": 0
+        },
+        "deleted": {
+          "name": "deleted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         }
       },
       "indexes": {},
-      "foreignKeys": {
-        "customer_rewards_customer_id_customers_person_id_fk": {
-          "name": "customer_rewards_customer_id_customers_person_id_fk",
-          "tableFrom": "customer_rewards",
-          "tableTo": "customers",
-          "columnsFrom": [
-            "customer_id"
-          ],
-          "columnsTo": [
-            "person_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "customer_rewards_reward_id_rewards_reward_id_fk": {
-          "name": "customer_rewards_reward_id_rewards_reward_id_fk",
-          "tableFrom": "customer_rewards",
-          "tableTo": "rewards",
-          "columnsFrom": [
-            "reward_id"
-          ],
-          "columnsTo": [
-            "reward_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
-        "customer_rewards_customer_id_reward_id_pk": {
-          "name": "customer_rewards_customer_id_reward_id_pk",
+        "ospos_customers_packages_package_id": {
+          "name": "ospos_customers_packages_package_id",
           "columns": [
-            "customer_id",
-            "reward_id"
+            "package_id"
           ]
         }
       },
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "customers": {
-      "name": "customers",
+    "ospos_customers": {
+      "name": "ospos_customers",
       "columns": {
         "person_id": {
           "name": "person_id",
@@ -480,15 +632,52 @@
         },
         "taxable": {
           "name": "taxable",
-          "type": "tinyint",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 1
+          "default": true
+        },
+        "tax_id": {
+          "name": "tax_id",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "sales_tax_code_id": {
+          "name": "sales_tax_code_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "package_id": {
+          "name": "package_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "points": {
+          "name": "points",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "deleted": {
+          "name": "deleted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "discount": {
           "name": "discount",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,2)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -502,42 +691,104 @@
           "autoincrement": false,
           "default": 0
         },
-        "points": {
-          "name": "points",
+        "date": {
+          "name": "date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "employee_id": {
+          "name": "employee_id",
           "type": "int",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": 0
+          "autoincrement": false
         },
-        "deleted": {
-          "name": "deleted",
-          "type": "tinyint",
+        "consent": {
+          "name": "consent",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "account_number": {
+          "name": "account_number",
+          "columns": [
+            "account_number"
+          ],
+          "isUnique": false
+        },
+        "sales_tax_code_id": {
+          "name": "sales_tax_code_id",
+          "columns": [
+            "sales_tax_code_id"
+          ],
+          "isUnique": false
+        },
+        "package_id": {
+          "name": "package_id",
+          "columns": [
+            "package_id"
+          ],
+          "isUnique": false
+        },
+        "company_name": {
+          "name": "company_name",
+          "columns": [
+            "company_name"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
-        "customers_person_id_people_person_id_fk": {
-          "name": "customers_person_id_people_person_id_fk",
-          "tableFrom": "customers",
-          "tableTo": "people",
+        "ospos_customers_ibfk_1": {
+          "name": "ospos_customers_ibfk_1",
+          "tableFrom": "ospos_customers",
+          "tableTo": "ospos_people",
           "columnsFrom": [
             "person_id"
           ],
           "columnsTo": [
             "person_id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ospos_customers_ibfk_2": {
+          "name": "ospos_customers_ibfk_2",
+          "tableFrom": "ospos_customers",
+          "tableTo": "ospos_customers_packages",
+          "columnsFrom": [
+            "package_id"
+          ],
+          "columnsTo": [
+            "package_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ospos_customers_ibfk_3": {
+          "name": "ospos_customers_ibfk_3",
+          "tableFrom": "ospos_customers",
+          "tableTo": "ospos_tax_codes",
+          "columnsFrom": [
+            "sales_tax_code_id"
+          ],
+          "columnsTo": [
+            "tax_code_id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
-        "customers_person_id": {
-          "name": "customers_person_id",
+        "ospos_customers_person_id": {
+          "name": "ospos_customers_person_id",
           "columns": [
             "person_id"
           ]
@@ -546,8 +797,122 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "dinner_tables": {
-      "name": "dinner_tables",
+    "ospos_customers_points": {
+      "name": "ospos_customers_points",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "package_id": {
+          "name": "package_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sale_id": {
+          "name": "sale_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "points_earned": {
+          "name": "points_earned",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "person_id": {
+          "name": "person_id",
+          "columns": [
+            "person_id"
+          ],
+          "isUnique": false
+        },
+        "package_id": {
+          "name": "package_id",
+          "columns": [
+            "package_id"
+          ],
+          "isUnique": false
+        },
+        "sale_id": {
+          "name": "sale_id",
+          "columns": [
+            "sale_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "ospos_customers_points_ibfk_1": {
+          "name": "ospos_customers_points_ibfk_1",
+          "tableFrom": "ospos_customers_points",
+          "tableTo": "ospos_customers",
+          "columnsFrom": [
+            "person_id"
+          ],
+          "columnsTo": [
+            "person_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ospos_customers_points_ibfk_2": {
+          "name": "ospos_customers_points_ibfk_2",
+          "tableFrom": "ospos_customers_points",
+          "tableTo": "ospos_customers_packages",
+          "columnsFrom": [
+            "package_id"
+          ],
+          "columnsTo": [
+            "package_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ospos_customers_points_ibfk_3": {
+          "name": "ospos_customers_points_ibfk_3",
+          "tableFrom": "ospos_customers_points",
+          "tableTo": "ospos_sales",
+          "columnsFrom": [
+            "sale_id"
+          ],
+          "columnsTo": [
+            "sale_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "ospos_customers_points_id": {
+          "name": "ospos_customers_points_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "ospos_dinner_tables": {
+      "name": "ospos_dinner_tables",
       "columns": {
         "dinner_table_id": {
           "name": "dinner_table_id",
@@ -558,7 +923,7 @@
         },
         "name": {
           "name": "name",
-          "type": "varchar(255)",
+          "type": "varchar(30)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -573,18 +938,26 @@
         },
         "deleted": {
           "name": "deleted",
-          "type": "tinyint",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "status": {
+          "name": "status",
+          "columns": [
+            "status"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "dinner_tables_dinner_table_id": {
-          "name": "dinner_tables_dinner_table_id",
+        "ospos_dinner_tables_dinner_table_id": {
+          "name": "ospos_dinner_tables_dinner_table_id",
           "columns": [
             "dinner_table_id"
           ]
@@ -593,8 +966,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "employees": {
-      "name": "employees",
+    "ospos_employees": {
+      "name": "ospos_employees",
       "columns": {
         "person_id": {
           "name": "person_id",
@@ -617,6 +990,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "deleted": {
+          "name": "deleted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
         "hash_version": {
           "name": "hash_version",
           "type": "tinyint",
@@ -625,65 +1006,58 @@
           "autoincrement": false,
           "default": 2
         },
-        "deleted": {
-          "name": "deleted",
-          "type": "tinyint",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
         "language": {
           "name": "language",
-          "type": "varchar(255)",
+          "type": "varchar(48)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "language_code": {
           "name": "language_code",
-          "type": "varchar(255)",
+          "type": "varchar(8)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "username": {
+          "name": "username",
+          "columns": [
+            "username"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {
-        "employees_person_id_people_person_id_fk": {
-          "name": "employees_person_id_people_person_id_fk",
-          "tableFrom": "employees",
-          "tableTo": "people",
+        "ospos_employees_ibfk_1": {
+          "name": "ospos_employees_ibfk_1",
+          "tableFrom": "ospos_employees",
+          "tableTo": "ospos_people",
           "columnsFrom": [
             "person_id"
           ],
           "columnsTo": [
             "person_id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
-        "employees_person_id": {
-          "name": "employees_person_id",
+        "ospos_employees_person_id": {
+          "name": "ospos_employees_person_id",
           "columns": [
             "person_id"
           ]
         }
       },
-      "uniqueConstraints": {
-        "employees_username_unique": {
-          "name": "employees_username_unique",
-          "columns": [
-            "username"
-          ]
-        }
-      },
+      "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "expense_categories": {
-      "name": "expense_categories",
+    "ospos_expense_categories": {
+      "name": "ospos_expense_categories",
       "columns": {
         "expense_category_id": {
           "name": "expense_category_id",
@@ -692,34 +1066,49 @@
           "notNull": true,
           "autoincrement": true
         },
-        "category": {
-          "name": "category",
+        "category_name": {
+          "name": "category_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "category_description": {
+          "name": "category_description",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "deleted": {
           "name": "deleted",
-          "type": "tinyint",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "category_name": {
+          "name": "category_name",
+          "columns": [
+            "category_name"
+          ],
+          "isUnique": true
+        },
+        "category_description": {
+          "name": "category_description",
+          "columns": [
+            "category_description"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "expense_categories_expense_category_id": {
-          "name": "expense_categories_expense_category_id",
+        "ospos_expense_categories_expense_category_id": {
+          "name": "ospos_expense_categories_expense_category_id",
           "columns": [
             "expense_category_id"
           ]
@@ -728,8 +1117,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "expenses": {
-      "name": "expenses",
+    "ospos_expenses": {
+      "name": "ospos_expenses",
       "columns": {
         "expense_id": {
           "name": "expense_id",
@@ -738,24 +1127,24 @@
           "notNull": true,
           "autoincrement": true
         },
-        "expense_time": {
-          "name": "expense_time",
-          "type": "int",
+        "date": {
+          "name": "date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "amount": {
+          "name": "amount",
+          "type": "decimal(15,2)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "amount": {
-          "name": "amount",
-          "type": "decimal(15,4)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
-        },
         "payment_type": {
           "name": "payment_type",
-          "type": "varchar(255)",
+          "type": "varchar(40)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -764,38 +1153,108 @@
           "name": "expense_category_id",
           "type": "int",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "description": {
           "name": "description",
-          "type": "text",
+          "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "employee_id": {
           "name": "employee_id",
           "type": "int",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "deleted": {
           "name": "deleted",
-          "type": "tinyint",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": false
+        },
+        "supplier_tax_code": {
+          "name": "supplier_tax_code",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tax_amount": {
+          "name": "tax_amount",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "supplier_id": {
+          "name": "supplier_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "expense_category_id": {
+          "name": "expense_category_id",
+          "columns": [
+            "expense_category_id"
+          ],
+          "isUnique": false
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "columns": [
+            "employee_id"
+          ],
+          "isUnique": false
+        },
+        "date": {
+          "name": "date",
+          "columns": [
+            "date"
+          ],
+          "isUnique": false
+        },
+        "payment_type": {
+          "name": "payment_type",
+          "columns": [
+            "payment_type"
+          ],
+          "isUnique": false
+        },
+        "amount": {
+          "name": "amount",
+          "columns": [
+            "amount"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
-        "expenses_employee_id_employees_person_id_fk": {
-          "name": "expenses_employee_id_employees_person_id_fk",
-          "tableFrom": "expenses",
-          "tableTo": "employees",
+        "ospos_expenses_ibfk_1": {
+          "name": "ospos_expenses_ibfk_1",
+          "tableFrom": "ospos_expenses",
+          "tableTo": "ospos_expense_categories",
+          "columnsFrom": [
+            "expense_category_id"
+          ],
+          "columnsTo": [
+            "expense_category_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ospos_expenses_ibfk_2": {
+          "name": "ospos_expenses_ibfk_2",
+          "tableFrom": "ospos_expenses",
+          "tableTo": "ospos_employees",
           "columnsFrom": [
             "employee_id"
           ],
@@ -804,11 +1263,24 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "ospos_expenses_ibfk_3": {
+          "name": "ospos_expenses_ibfk_3",
+          "tableFrom": "ospos_expenses",
+          "tableTo": "ospos_suppliers",
+          "columnsFrom": [
+            "supplier_id"
+          ],
+          "columnsTo": [
+            "person_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
-        "expenses_expense_id": {
-          "name": "expenses_expense_id",
+        "ospos_expenses_expense_id": {
+          "name": "ospos_expenses_expense_id",
           "columns": [
             "expense_id"
           ]
@@ -817,8 +1289,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "giftcards": {
-      "name": "giftcards",
+    "ospos_giftcards": {
+      "name": "ospos_giftcards",
       "columns": {
         "giftcard_id": {
           "name": "giftcard_id",
@@ -827,20 +1299,35 @@
           "notNull": true,
           "autoincrement": true
         },
+        "record_time": {
+          "name": "record_time",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
         "giftcard_number": {
           "name": "giftcard_number",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "value": {
           "name": "value",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "deleted": {
+          "name": "deleted",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'0'"
+          "default": false
         },
         "person_id": {
           "name": "person_id",
@@ -848,22 +1335,29 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "deleted": {
-          "name": "deleted",
-          "type": "tinyint",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
         }
       },
-      "indexes": {},
+      "indexes": {
+        "giftcard_number": {
+          "name": "giftcard_number",
+          "columns": [
+            "giftcard_number"
+          ],
+          "isUnique": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "columns": [
+            "person_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
-        "giftcards_person_id_people_person_id_fk": {
-          "name": "giftcards_person_id_people_person_id_fk",
-          "tableFrom": "giftcards",
-          "tableTo": "people",
+        "ospos_giftcards_ibfk_1": {
+          "name": "ospos_giftcards_ibfk_1",
+          "tableFrom": "ospos_giftcards",
+          "tableTo": "ospos_people",
           "columnsFrom": [
             "person_id"
           ],
@@ -875,25 +1369,18 @@
         }
       },
       "compositePrimaryKeys": {
-        "giftcards_giftcard_id": {
-          "name": "giftcards_giftcard_id",
+        "ospos_giftcards_giftcard_id": {
+          "name": "ospos_giftcards_giftcard_id",
           "columns": [
             "giftcard_id"
           ]
         }
       },
-      "uniqueConstraints": {
-        "giftcards_giftcard_number_unique": {
-          "name": "giftcards_giftcard_number_unique",
-          "columns": [
-            "giftcard_number"
-          ]
-        }
-      },
+      "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "grants": {
-      "name": "grants",
+    "ospos_grants": {
+      "name": "ospos_grants",
       "columns": {
         "permission_id": {
           "name": "permission_id",
@@ -911,19 +1398,19 @@
         },
         "menu_group": {
           "name": "menu_group",
-          "type": "varchar(10)",
+          "type": "varchar(32)",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false,
-          "default": "'both'"
+          "default": "'home'"
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "grants_permission_id_permissions_permission_id_fk": {
-          "name": "grants_permission_id_permissions_permission_id_fk",
-          "tableFrom": "grants",
-          "tableTo": "permissions",
+        "ospos_grants_ibfk_1": {
+          "name": "ospos_grants_ibfk_1",
+          "tableFrom": "ospos_grants",
+          "tableTo": "ospos_permissions",
           "columnsFrom": [
             "permission_id"
           ],
@@ -933,10 +1420,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "grants_person_id_employees_person_id_fk": {
-          "name": "grants_person_id_employees_person_id_fk",
-          "tableFrom": "grants",
-          "tableTo": "employees",
+        "ospos_grants_ibfk_2": {
+          "name": "ospos_grants_ibfk_2",
+          "tableFrom": "ospos_grants",
+          "tableTo": "ospos_employees",
           "columnsFrom": [
             "person_id"
           ],
@@ -948,8 +1435,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "grants_permission_id_person_id_pk": {
-          "name": "grants_permission_id_person_id_pk",
+        "PRIMARY": {
+          "name": "PRIMARY",
           "columns": [
             "permission_id",
             "person_id"
@@ -959,8 +1446,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "inventory": {
-      "name": "inventory",
+    "ospos_inventory": {
+      "name": "ospos_inventory",
       "columns": {
         "trans_id": {
           "name": "trans_id",
@@ -973,52 +1460,92 @@
           "name": "trans_items",
           "type": "int",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "trans_user": {
           "name": "trans_user",
           "type": "int",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "trans_date": {
           "name": "trans_date",
-          "type": "int",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
         },
         "trans_comment": {
           "name": "trans_comment",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "trans_location": {
           "name": "trans_location",
           "type": "int",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "trans_inventory": {
           "name": "trans_inventory",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,3)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": "'0'"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "trans_items": {
+          "name": "trans_items",
+          "columns": [
+            "trans_items"
+          ],
+          "isUnique": false
+        },
+        "trans_user": {
+          "name": "trans_user",
+          "columns": [
+            "trans_user"
+          ],
+          "isUnique": false
+        },
+        "trans_location": {
+          "name": "trans_location",
+          "columns": [
+            "trans_location"
+          ],
+          "isUnique": false
+        },
+        "trans_date": {
+          "name": "trans_date",
+          "columns": [
+            "trans_date"
+          ],
+          "isUnique": false
+        },
+        "trans_items_trans_date": {
+          "name": "trans_items_trans_date",
+          "columns": [
+            "trans_items",
+            "trans_date"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
-        "inventory_trans_items_items_item_id_fk": {
-          "name": "inventory_trans_items_items_item_id_fk",
-          "tableFrom": "inventory",
-          "tableTo": "items",
+        "ospos_inventory_ibfk_1": {
+          "name": "ospos_inventory_ibfk_1",
+          "tableFrom": "ospos_inventory",
+          "tableTo": "ospos_items",
           "columnsFrom": [
             "trans_items"
           ],
@@ -1028,10 +1555,10 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "inventory_trans_user_people_person_id_fk": {
-          "name": "inventory_trans_user_people_person_id_fk",
-          "tableFrom": "inventory",
-          "tableTo": "people",
+        "ospos_inventory_ibfk_2": {
+          "name": "ospos_inventory_ibfk_2",
+          "tableFrom": "ospos_inventory",
+          "tableTo": "ospos_employees",
           "columnsFrom": [
             "trans_user"
           ],
@@ -1041,10 +1568,10 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "inventory_trans_location_stock_locations_location_id_fk": {
-          "name": "inventory_trans_location_stock_locations_location_id_fk",
-          "tableFrom": "inventory",
-          "tableTo": "stock_locations",
+        "ospos_inventory_ibfk_3": {
+          "name": "ospos_inventory_ibfk_3",
+          "tableFrom": "ospos_inventory",
+          "tableTo": "ospos_stock_locations",
           "columnsFrom": [
             "trans_location"
           ],
@@ -1056,8 +1583,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "inventory_trans_id": {
-          "name": "inventory_trans_id",
+        "ospos_inventory_trans_id": {
+          "name": "ospos_inventory_trans_id",
           "columns": [
             "trans_id"
           ]
@@ -1066,8 +1593,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "item_kit_items": {
-      "name": "item_kit_items",
+    "ospos_item_kit_items": {
+      "name": "ospos_item_kit_items",
       "columns": {
         "item_kit_id": {
           "name": "item_kit_id",
@@ -1085,11 +1612,10 @@
         },
         "quantity": {
           "name": "quantity",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,3)",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'1'"
+          "autoincrement": false
         },
         "kit_sequence": {
           "name": "kit_sequence",
@@ -1102,10 +1628,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "item_kit_items_item_kit_id_item_kits_item_kit_id_fk": {
-          "name": "item_kit_items_item_kit_id_item_kits_item_kit_id_fk",
-          "tableFrom": "item_kit_items",
-          "tableTo": "item_kits",
+        "ospos_item_kit_items_ibfk_1": {
+          "name": "ospos_item_kit_items_ibfk_1",
+          "tableFrom": "ospos_item_kit_items",
+          "tableTo": "ospos_item_kits",
           "columnsFrom": [
             "item_kit_id"
           ],
@@ -1115,10 +1641,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "item_kit_items_item_id_items_item_id_fk": {
-          "name": "item_kit_items_item_id_items_item_id_fk",
-          "tableFrom": "item_kit_items",
-          "tableTo": "items",
+        "ospos_item_kit_items_ibfk_2": {
+          "name": "ospos_item_kit_items_ibfk_2",
+          "tableFrom": "ospos_item_kit_items",
+          "tableTo": "ospos_items",
           "columnsFrom": [
             "item_id"
           ],
@@ -1130,20 +1656,20 @@
         }
       },
       "compositePrimaryKeys": {
-        "item_kit_items_item_kit_id_item_id_kit_sequence_pk": {
-          "name": "item_kit_items_item_kit_id_item_id_kit_sequence_pk",
+        "PRIMARY": {
+          "name": "PRIMARY",
           "columns": [
             "item_kit_id",
             "item_id",
-            "kit_sequence"
+            "quantity"
           ]
         }
       },
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "item_kits": {
-      "name": "item_kits",
+    "ospos_item_kits": {
+      "name": "ospos_item_kits",
       "columns": {
         "item_kit_id": {
           "name": "item_kit_id",
@@ -1168,21 +1694,22 @@
         },
         "description": {
           "name": "description",
-          "type": "text",
+          "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "item_id": {
           "name": "item_id",
           "type": "int",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "kit_discount": {
           "name": "kit_discount",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,2)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1213,25 +1740,27 @@
           "default": 0
         }
       },
-      "indexes": {},
-      "foreignKeys": {
-        "item_kits_item_id_items_item_id_fk": {
-          "name": "item_kits_item_id_items_item_id_fk",
-          "tableFrom": "item_kits",
-          "tableTo": "items",
-          "columnsFrom": [
-            "item_id"
+      "indexes": {
+        "item_kit_number": {
+          "name": "item_kit_number",
+          "columns": [
+            "item_kit_number"
           ],
-          "columnsTo": [
-            "item_id"
+          "isUnique": false
+        },
+        "name": {
+          "name": "name",
+          "columns": [
+            "name",
+            "description"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "isUnique": false
         }
       },
+      "foreignKeys": {},
       "compositePrimaryKeys": {
-        "item_kits_item_kit_id": {
-          "name": "item_kits_item_kit_id",
+        "ospos_item_kits_item_kit_id": {
+          "name": "ospos_item_kits_item_kit_id",
           "columns": [
             "item_kit_id"
           ]
@@ -1240,8 +1769,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "item_quantities": {
-      "name": "item_quantities",
+    "ospos_item_quantities": {
+      "name": "ospos_item_quantities",
       "columns": {
         "item_id": {
           "name": "item_id",
@@ -1259,45 +1788,60 @@
         },
         "quantity": {
           "name": "quantity",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,3)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": "'0'"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "item_id": {
+          "name": "item_id",
+          "columns": [
+            "item_id"
+          ],
+          "isUnique": false
+        },
+        "location_id": {
+          "name": "location_id",
+          "columns": [
+            "location_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
-        "item_quantities_item_id_items_item_id_fk": {
-          "name": "item_quantities_item_id_items_item_id_fk",
-          "tableFrom": "item_quantities",
-          "tableTo": "items",
+        "ospos_item_quantities_ibfk_1": {
+          "name": "ospos_item_quantities_ibfk_1",
+          "tableFrom": "ospos_item_quantities",
+          "tableTo": "ospos_items",
           "columnsFrom": [
             "item_id"
           ],
           "columnsTo": [
             "item_id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "item_quantities_location_id_stock_locations_location_id_fk": {
-          "name": "item_quantities_location_id_stock_locations_location_id_fk",
-          "tableFrom": "item_quantities",
-          "tableTo": "stock_locations",
+        "ospos_item_quantities_ibfk_2": {
+          "name": "ospos_item_quantities_ibfk_2",
+          "tableFrom": "ospos_item_quantities",
+          "tableTo": "ospos_stock_locations",
           "columnsFrom": [
             "location_id"
           ],
           "columnsTo": [
             "location_id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
-        "item_quantities_item_id_location_id_pk": {
-          "name": "item_quantities_item_id_location_id_pk",
+        "PRIMARY": {
+          "name": "PRIMARY",
           "columns": [
             "item_id",
             "location_id"
@@ -1307,8 +1851,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "items": {
-      "name": "items",
+    "ospos_items": {
+      "name": "ospos_items",
       "columns": {
         "item_id": {
           "name": "item_id",
@@ -1328,7 +1872,7 @@
           "name": "category",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "supplier_id": {
@@ -1347,30 +1891,28 @@
         },
         "description": {
           "name": "description",
-          "type": "text",
+          "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "cost_price": {
           "name": "cost_price",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,2)",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
+          "autoincrement": false
         },
         "unit_price": {
           "name": "unit_price",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,2)",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
+          "autoincrement": false
         },
         "reorder_level": {
           "name": "reorder_level",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,3)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1378,7 +1920,7 @@
         },
         "receiving_quantity": {
           "name": "receiving_quantity",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,3)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1393,19 +1935,25 @@
         },
         "allow_alt_description": {
           "name": "allow_alt_description",
-          "type": "tinyint",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": 0
+          "autoincrement": false
         },
         "is_serialized": {
           "name": "is_serialized",
-          "type": "tinyint",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "deleted": {
+          "name": "deleted",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": false
         },
         "stock_type": {
           "name": "stock_type",
@@ -1432,7 +1980,7 @@
         },
         "qty_per_pack": {
           "name": "qty_per_pack",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,3)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1440,40 +1988,76 @@
         },
         "pack_name": {
           "name": "pack_name",
-          "type": "varchar(255)",
+          "type": "varchar(8)",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "'Each'"
         },
         "low_sell_item_id": {
           "name": "low_sell_item_id",
           "type": "int",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": 0
         },
         "hsn_code": {
           "name": "hsn_code",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "deleted": {
-          "name": "deleted",
-          "type": "tinyint",
+          "type": "varchar(32)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": "''"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "item_number": {
+          "name": "item_number",
+          "columns": [
+            "item_number"
+          ],
+          "isUnique": false
+        },
+        "supplier_id": {
+          "name": "supplier_id",
+          "columns": [
+            "supplier_id"
+          ],
+          "isUnique": false
+        },
+        "deleted": {
+          "name": "deleted",
+          "columns": [
+            "deleted",
+            "item_type"
+          ],
+          "isUnique": false
+        },
+        "item_id": {
+          "name": "item_id",
+          "columns": [
+            "item_id",
+            "deleted"
+          ],
+          "isUnique": false
+        },
+        "items_uq1": {
+          "name": "items_uq1",
+          "columns": [
+            "supplier_id",
+            "item_id",
+            "deleted",
+            "item_type"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {
-        "items_supplier_id_people_person_id_fk": {
-          "name": "items_supplier_id_people_person_id_fk",
-          "tableFrom": "items",
-          "tableTo": "people",
+        "ospos_items_ibfk_1": {
+          "name": "ospos_items_ibfk_1",
+          "tableFrom": "ospos_items",
+          "tableTo": "ospos_suppliers",
           "columnsFrom": [
             "supplier_id"
           ],
@@ -1485,8 +2069,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "items_item_id": {
-          "name": "items_item_id",
+        "ospos_items_item_id": {
+          "name": "ospos_items_item_id",
           "columns": [
             "item_id"
           ]
@@ -1495,8 +2079,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "items_taxes": {
-      "name": "items_taxes",
+    "ospos_items_taxes": {
+      "name": "ospos_items_taxes",
       "columns": {
         "item_id": {
           "name": "item_id",
@@ -1514,19 +2098,18 @@
         },
         "percent": {
           "name": "percent",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,3)",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
+          "autoincrement": false
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "items_taxes_item_id_items_item_id_fk": {
-          "name": "items_taxes_item_id_items_item_id_fk",
-          "tableFrom": "items_taxes",
-          "tableTo": "items",
+        "ospos_items_taxes_ibfk_1": {
+          "name": "ospos_items_taxes_ibfk_1",
+          "tableFrom": "ospos_items_taxes",
+          "tableTo": "ospos_items",
           "columnsFrom": [
             "item_id"
           ],
@@ -1537,29 +2120,45 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "PRIMARY": {
+          "name": "PRIMARY",
+          "columns": [
+            "item_id",
+            "name",
+            "percent"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "migrations": {
-      "name": "migrations",
+    "ospos_migrations": {
+      "name": "ospos_migrations",
       "columns": {
         "id": {
           "name": "id",
-          "type": "int",
+          "type": "bigint unsigned",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": true
         },
         "version": {
           "name": "version",
-          "type": "int",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "class": {
           "name": "class",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "group": {
+          "name": "group",
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true,
@@ -1578,13 +2177,20 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "batch": {
+          "name": "batch",
+          "type": "int unsigned",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "migrations_id": {
-          "name": "migrations_id",
+        "ospos_migrations_id": {
+          "name": "ospos_migrations_id",
           "columns": [
             "id"
           ]
@@ -1593,8 +2199,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "modules": {
-      "name": "modules",
+    "ospos_modules": {
+      "name": "ospos_modules",
       "columns": {
         "module_id": {
           "name": "module_id",
@@ -1622,32 +2228,39 @@
           "type": "int",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": 0
+          "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "desc_lang_key": {
+          "name": "desc_lang_key",
+          "columns": [
+            "desc_lang_key"
+          ],
+          "isUnique": true
+        },
+        "name_lang_key": {
+          "name": "name_lang_key",
+          "columns": [
+            "name_lang_key"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "modules_module_id": {
-          "name": "modules_module_id",
+        "ospos_modules_module_id": {
+          "name": "ospos_modules_module_id",
           "columns": [
             "module_id"
           ]
         }
       },
-      "uniqueConstraints": {
-        "modules_desc_lang_key_unique": {
-          "name": "modules_desc_lang_key_unique",
-          "columns": [
-            "desc_lang_key"
-          ]
-        }
-      },
+      "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "people": {
-      "name": "people",
+    "ospos_people": {
+      "name": "ospos_people",
       "columns": {
         "person_id": {
           "name": "person_id",
@@ -1667,86 +2280,103 @@
           "name": "last_name",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "gender": {
           "name": "gender",
-          "type": "tinyint",
+          "type": "int",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false,
-          "default": 0
+          "autoincrement": false
         },
         "phone_number": {
           "name": "phone_number",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "email": {
           "name": "email",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "address_1": {
           "name": "address_1",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "address_2": {
           "name": "address_2",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "city": {
           "name": "city",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "state": {
           "name": "state",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "zip": {
           "name": "zip",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "country": {
           "name": "country",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "comments": {
           "name": "comments",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "email": {
+          "name": "email",
+          "columns": [
+            "email"
+          ],
+          "isUnique": false
+        },
+        "first_name": {
+          "name": "first_name",
+          "columns": [
+            "`first_name`(191)",
+            "`last_name`(191)",
+            "`email`(191)",
+            "`phone_number`(191)"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "people_person_id": {
-          "name": "people_person_id",
+        "ospos_people_person_id": {
+          "name": "ospos_people_person_id",
           "columns": [
             "person_id"
           ]
@@ -1755,8 +2385,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "permissions": {
-      "name": "permissions",
+    "ospos_permissions": {
+      "name": "ospos_permissions",
       "columns": {
         "permission_id": {
           "name": "permission_id",
@@ -1780,12 +2410,20 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "module_id": {
+          "name": "module_id",
+          "columns": [
+            "module_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
-        "permissions_module_id_modules_module_id_fk": {
-          "name": "permissions_module_id_modules_module_id_fk",
-          "tableFrom": "permissions",
-          "tableTo": "modules",
+        "ospos_permissions_ibfk_1": {
+          "name": "ospos_permissions_ibfk_1",
+          "tableFrom": "ospos_permissions",
+          "tableTo": "ospos_modules",
           "columnsFrom": [
             "module_id"
           ],
@@ -1795,10 +2433,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "permissions_location_id_stock_locations_location_id_fk": {
-          "name": "permissions_location_id_stock_locations_location_id_fk",
-          "tableFrom": "permissions",
-          "tableTo": "stock_locations",
+        "ospos_permissions_ibfk_2": {
+          "name": "ospos_permissions_ibfk_2",
+          "tableFrom": "ospos_permissions",
+          "tableTo": "ospos_stock_locations",
           "columnsFrom": [
             "location_id"
           ],
@@ -1810,8 +2448,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "permissions_permission_id": {
-          "name": "permissions_permission_id",
+        "ospos_permissions_permission_id": {
+          "name": "ospos_permissions_permission_id",
           "columns": [
             "permission_id"
           ]
@@ -1820,8 +2458,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "receivings": {
-      "name": "receivings",
+    "ospos_receivings": {
+      "name": "ospos_receivings",
       "columns": {
         "receiving_id": {
           "name": "receiving_id",
@@ -1832,10 +2470,11 @@
         },
         "receiving_time": {
           "name": "receiving_time",
-          "type": "int",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
         },
         "supplier_id": {
           "name": "supplier_id",
@@ -1848,64 +2487,67 @@
           "name": "employee_id",
           "type": "int",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "comment": {
           "name": "comment",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "payment_type": {
           "name": "payment_type",
-          "type": "text",
+          "type": "varchar(20)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "receiving_ref": {
-          "name": "receiving_ref",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "invoice_number": {
-          "name": "invoice_number",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "receiving_location": {
-          "name": "receiving_location",
-          "type": "int",
+        "reference": {
+          "name": "reference",
+          "type": "varchar(32)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         }
       },
-      "indexes": {},
-      "foreignKeys": {
-        "receivings_supplier_id_people_person_id_fk": {
-          "name": "receivings_supplier_id_people_person_id_fk",
-          "tableFrom": "receivings",
-          "tableTo": "people",
-          "columnsFrom": [
+      "indexes": {
+        "supplier_id": {
+          "name": "supplier_id",
+          "columns": [
             "supplier_id"
           ],
-          "columnsTo": [
-            "person_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "isUnique": false
         },
-        "receivings_employee_id_employees_person_id_fk": {
-          "name": "receivings_employee_id_employees_person_id_fk",
-          "tableFrom": "receivings",
-          "tableTo": "employees",
+        "employee_id": {
+          "name": "employee_id",
+          "columns": [
+            "employee_id"
+          ],
+          "isUnique": false
+        },
+        "reference": {
+          "name": "reference",
+          "columns": [
+            "reference"
+          ],
+          "isUnique": false
+        },
+        "receiving_time": {
+          "name": "receiving_time",
+          "columns": [
+            "receiving_time"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "ospos_receivings_ibfk_1": {
+          "name": "ospos_receivings_ibfk_1",
+          "tableFrom": "ospos_receivings",
+          "tableTo": "ospos_employees",
           "columnsFrom": [
             "employee_id"
           ],
@@ -1915,23 +2557,23 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "receivings_receiving_location_stock_locations_location_id_fk": {
-          "name": "receivings_receiving_location_stock_locations_location_id_fk",
-          "tableFrom": "receivings",
-          "tableTo": "stock_locations",
+        "ospos_receivings_ibfk_2": {
+          "name": "ospos_receivings_ibfk_2",
+          "tableFrom": "ospos_receivings",
+          "tableTo": "ospos_suppliers",
           "columnsFrom": [
-            "receiving_location"
+            "supplier_id"
           ],
           "columnsTo": [
-            "location_id"
+            "person_id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
-        "receivings_receiving_id": {
-          "name": "receivings_receiving_id",
+        "ospos_receivings_receiving_id": {
+          "name": "ospos_receivings_receiving_id",
           "columns": [
             "receiving_id"
           ]
@@ -1940,40 +2582,49 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "receivings_items": {
-      "name": "receivings_items",
+    "ospos_receivings_items": {
+      "name": "ospos_receivings_items",
       "columns": {
         "receiving_id": {
           "name": "receiving_id",
           "type": "int",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": 0
         },
         "item_id": {
           "name": "item_id",
           "type": "int",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": 0
         },
         "description": {
           "name": "description",
-          "type": "text",
+          "type": "varchar(30)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "serialnumber": {
           "name": "serialnumber",
-          "type": "text",
+          "type": "varchar(30)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
+        "line": {
+          "name": "line",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "quantity_purchased": {
           "name": "quantity_purchased",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,3)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -1981,23 +2632,21 @@
         },
         "item_cost_price": {
           "name": "item_cost_price",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,2)",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
+          "autoincrement": false
         },
         "item_unit_price": {
           "name": "item_unit_price",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,2)",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
+          "autoincrement": false
         },
         "discount": {
           "name": "discount",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,2)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -2011,55 +2660,36 @@
           "autoincrement": false,
           "default": 0
         },
-        "line": {
-          "name": "line",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "item_location": {
           "name": "item_location",
           "type": "int",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "receiving_quantity": {
           "name": "receiving_quantity",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,3)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": "'1'"
-        },
-        "transfer_item_location": {
-          "name": "transfer_item_location",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "item_id": {
+          "name": "item_id",
+          "columns": [
+            "item_id"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
-        "receivings_items_receiving_id_receivings_receiving_id_fk": {
-          "name": "receivings_items_receiving_id_receivings_receiving_id_fk",
-          "tableFrom": "receivings_items",
-          "tableTo": "receivings",
-          "columnsFrom": [
-            "receiving_id"
-          ],
-          "columnsTo": [
-            "receiving_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "receivings_items_item_id_items_item_id_fk": {
-          "name": "receivings_items_item_id_items_item_id_fk",
-          "tableFrom": "receivings_items",
-          "tableTo": "items",
+        "ospos_receivings_items_ibfk_1": {
+          "name": "ospos_receivings_items_ibfk_1",
+          "tableFrom": "ospos_receivings_items",
+          "tableTo": "ospos_items",
           "columnsFrom": [
             "item_id"
           ],
@@ -2069,23 +2699,23 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "receivings_items_item_location_stock_locations_location_id_fk": {
-          "name": "receivings_items_item_location_stock_locations_location_id_fk",
-          "tableFrom": "receivings_items",
-          "tableTo": "stock_locations",
+        "ospos_receivings_items_ibfk_2": {
+          "name": "ospos_receivings_items_ibfk_2",
+          "tableFrom": "ospos_receivings_items",
+          "tableTo": "ospos_receivings",
           "columnsFrom": [
-            "item_location"
+            "receiving_id"
           ],
           "columnsTo": [
-            "location_id"
+            "receiving_id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
-        "receivings_items_receiving_id_item_id_line_pk": {
-          "name": "receivings_items_receiving_id_item_id_line_pk",
+        "PRIMARY": {
+          "name": "PRIMARY",
           "columns": [
             "receiving_id",
             "item_id",
@@ -2096,55 +2726,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "rewards": {
-      "name": "rewards",
-      "columns": {
-        "reward_id": {
-          "name": "reward_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": true
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "points_percent": {
-          "name": "points_percent",
-          "type": "decimal(15,4)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
-        },
-        "deleted": {
-          "name": "deleted",
-          "type": "tinyint",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "rewards_reward_id": {
-          "name": "rewards_reward_id",
-          "columns": [
-            "reward_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraint": {}
-    },
-    "sales": {
-      "name": "sales",
+    "ospos_sales": {
+      "name": "ospos_sales",
       "columns": {
         "sale_id": {
           "name": "sale_id",
@@ -2155,10 +2738,11 @@
         },
         "sale_time": {
           "name": "sale_time",
-          "type": "int",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
         },
         "customer_id": {
           "name": "customer_id",
@@ -2171,26 +2755,27 @@
           "name": "employee_id",
           "type": "int",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "comment": {
           "name": "comment",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "invoice_number": {
           "name": "invoice_number",
-          "type": "varchar(255)",
+          "type": "varchar(32)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
         "quote_number": {
           "name": "quote_number",
-          "type": "varchar(255)",
+          "type": "varchar(32)",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -2202,6 +2787,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": 0
+        },
+        "work_order_number": {
+          "name": "work_order_number",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "sale_type": {
           "name": "sale_type",
@@ -2217,57 +2809,50 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
-        },
-        "work_order_number": {
-          "name": "work_order_number",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "sale_location": {
-          "name": "sale_location",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "sale_cash_adjustment": {
-          "name": "sale_cash_adjustment",
-          "type": "decimal(15,4)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
-        },
-        "sale_cash_refund": {
-          "name": "sale_cash_refund",
-          "type": "decimal(15,4)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
         }
       },
-      "indexes": {},
-      "foreignKeys": {
-        "sales_customer_id_people_person_id_fk": {
-          "name": "sales_customer_id_people_person_id_fk",
-          "tableFrom": "sales",
-          "tableTo": "people",
-          "columnsFrom": [
+      "indexes": {
+        "invoice_number": {
+          "name": "invoice_number",
+          "columns": [
+            "invoice_number"
+          ],
+          "isUnique": true
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "columns": [
             "customer_id"
           ],
-          "columnsTo": [
-            "person_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "isUnique": false
         },
-        "sales_employee_id_employees_person_id_fk": {
-          "name": "sales_employee_id_employees_person_id_fk",
-          "tableFrom": "sales",
-          "tableTo": "employees",
+        "employee_id": {
+          "name": "employee_id",
+          "columns": [
+            "employee_id"
+          ],
+          "isUnique": false
+        },
+        "sale_time": {
+          "name": "sale_time",
+          "columns": [
+            "sale_time"
+          ],
+          "isUnique": false
+        },
+        "dinner_table_id": {
+          "name": "dinner_table_id",
+          "columns": [
+            "dinner_table_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "ospos_sales_ibfk_1": {
+          "name": "ospos_sales_ibfk_1",
+          "tableFrom": "ospos_sales",
+          "tableTo": "ospos_employees",
           "columnsFrom": [
             "employee_id"
           ],
@@ -2277,23 +2862,36 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "sales_sale_location_stock_locations_location_id_fk": {
-          "name": "sales_sale_location_stock_locations_location_id_fk",
-          "tableFrom": "sales",
-          "tableTo": "stock_locations",
+        "ospos_sales_ibfk_2": {
+          "name": "ospos_sales_ibfk_2",
+          "tableFrom": "ospos_sales",
+          "tableTo": "ospos_customers",
           "columnsFrom": [
-            "sale_location"
+            "customer_id"
           ],
           "columnsTo": [
-            "location_id"
+            "person_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ospos_sales_ibfk_3": {
+          "name": "ospos_sales_ibfk_3",
+          "tableFrom": "ospos_sales",
+          "tableTo": "ospos_dinner_tables",
+          "columnsFrom": [
+            "dinner_table_id"
+          ],
+          "columnsTo": [
+            "dinner_table_id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
-        "sales_sale_id": {
-          "name": "sales_sale_id",
+        "ospos_sales_sale_id": {
+          "name": "ospos_sales_sale_id",
           "columns": [
             "sale_id"
           ]
@@ -2302,21 +2900,37 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "sales_items": {
-      "name": "sales_items",
+    "ospos_sales_items": {
+      "name": "ospos_sales_items",
       "columns": {
         "sale_id": {
           "name": "sale_id",
           "type": "int",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": 0
         },
         "item_id": {
           "name": "item_id",
           "type": "int",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "description": {
+          "name": "description",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "serialnumber": {
+          "name": "serialnumber",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false,
           "autoincrement": false
         },
         "line": {
@@ -2324,33 +2938,34 @@
           "type": "int",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "serialnumber": {
-          "name": "serialnumber",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": 0
         },
         "quantity_purchased": {
           "name": "quantity_purchased",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,3)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
           "default": "'0'"
         },
+        "item_cost_price": {
+          "name": "item_cost_price",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "item_unit_price": {
+          "name": "item_unit_price",
+          "type": "decimal(15,2)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "discount": {
           "name": "discount",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,2)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -2364,27 +2979,11 @@
           "autoincrement": false,
           "default": 0
         },
-        "item_cost_price": {
-          "name": "item_cost_price",
-          "type": "decimal(15,4)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
-        },
-        "item_unit_price": {
-          "name": "item_unit_price",
-          "type": "decimal(15,4)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
-        },
         "item_location": {
           "name": "item_location",
           "type": "int",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "print_option": {
@@ -2396,25 +2995,34 @@
           "default": 0
         }
       },
-      "indexes": {},
-      "foreignKeys": {
-        "sales_items_sale_id_sales_sale_id_fk": {
-          "name": "sales_items_sale_id_sales_sale_id_fk",
-          "tableFrom": "sales_items",
-          "tableTo": "sales",
-          "columnsFrom": [
+      "indexes": {
+        "sale_id": {
+          "name": "sale_id",
+          "columns": [
             "sale_id"
           ],
-          "columnsTo": [
-            "sale_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "isUnique": false
         },
-        "sales_items_item_id_items_item_id_fk": {
-          "name": "sales_items_item_id_items_item_id_fk",
-          "tableFrom": "sales_items",
-          "tableTo": "items",
+        "item_id": {
+          "name": "item_id",
+          "columns": [
+            "item_id"
+          ],
+          "isUnique": false
+        },
+        "item_location": {
+          "name": "item_location",
+          "columns": [
+            "item_location"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "ospos_sales_items_ibfk_1": {
+          "name": "ospos_sales_items_ibfk_1",
+          "tableFrom": "ospos_sales_items",
+          "tableTo": "ospos_items",
           "columnsFrom": [
             "item_id"
           ],
@@ -2424,10 +3032,23 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "sales_items_item_location_stock_locations_location_id_fk": {
-          "name": "sales_items_item_location_stock_locations_location_id_fk",
-          "tableFrom": "sales_items",
-          "tableTo": "stock_locations",
+        "ospos_sales_items_ibfk_2": {
+          "name": "ospos_sales_items_ibfk_2",
+          "tableFrom": "ospos_sales_items",
+          "tableTo": "ospos_sales",
+          "columnsFrom": [
+            "sale_id"
+          ],
+          "columnsTo": [
+            "sale_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ospos_sales_items_ibfk_3": {
+          "name": "ospos_sales_items_ibfk_3",
+          "tableFrom": "ospos_sales_items",
+          "tableTo": "ospos_stock_locations",
           "columnsFrom": [
             "item_location"
           ],
@@ -2439,8 +3060,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "sales_items_sale_id_item_id_line_pk": {
-          "name": "sales_items_sale_id_item_id_line_pk",
+        "PRIMARY": {
+          "name": "PRIMARY",
           "columns": [
             "sale_id",
             "item_id",
@@ -2451,8 +3072,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "sales_items_taxes": {
-      "name": "sales_items_taxes",
+    "ospos_sales_items_taxes": {
+      "name": "ospos_sales_items_taxes",
       "columns": {
         "sale_id": {
           "name": "sale_id",
@@ -2473,7 +3094,8 @@
           "type": "int",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": 0
         },
         "name": {
           "name": "name",
@@ -2488,7 +3110,31 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'0'"
+          "default": "'0.0000'"
+        },
+        "tax_type": {
+          "name": "tax_type",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "rounding_code": {
+          "name": "rounding_code",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "cascade_sequence": {
+          "name": "cascade_sequence",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "item_tax_amount": {
           "name": "item_tax_amount",
@@ -2497,31 +3143,102 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'0'"
+        },
+        "sales_tax_code_id": {
+          "name": "sales_tax_code_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "jurisdiction_id": {
+          "name": "jurisdiction_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tax_category_id": {
+          "name": "tax_category_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
-      "indexes": {},
-      "foreignKeys": {
-        "sales_items_taxes_sale_id_sales_sale_id_fk": {
-          "name": "sales_items_taxes_sale_id_sales_sale_id_fk",
-          "tableFrom": "sales_items_taxes",
-          "tableTo": "sales",
-          "columnsFrom": [
+      "indexes": {
+        "sale_id": {
+          "name": "sale_id",
+          "columns": [
             "sale_id"
+          ],
+          "isUnique": false
+        },
+        "item_id": {
+          "name": "item_id",
+          "columns": [
+            "item_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "ospos_sales_items_taxes_ibfk_1": {
+          "name": "ospos_sales_items_taxes_ibfk_1",
+          "tableFrom": "ospos_sales_items_taxes",
+          "tableTo": "ospos_sales_items",
+          "columnsFrom": [
+            "sale_id",
+            "item_id",
+            "line"
           ],
           "columnsTo": [
-            "sale_id"
+            "sale_id",
+            "item_id",
+            "line"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ospos_sales_items_taxes_ibfk_2": {
+          "name": "ospos_sales_items_taxes_ibfk_2",
+          "tableFrom": "ospos_sales_items_taxes",
+          "tableTo": "ospos_items",
+          "columnsFrom": [
+            "item_id"
+          ],
+          "columnsTo": [
+            "item_id"
+          ],
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "PRIMARY": {
+          "name": "PRIMARY",
+          "columns": [
+            "sale_id",
+            "item_id",
+            "line",
+            "name",
+            "percent"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "sales_payments": {
-      "name": "sales_payments",
+    "ospos_sales_payments": {
+      "name": "ospos_sales_payments",
       "columns": {
+        "payment_id": {
+          "name": "payment_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
         "sale_id": {
           "name": "sale_id",
           "type": "int",
@@ -2531,22 +3248,21 @@
         },
         "payment_type": {
           "name": "payment_type",
-          "type": "varchar(255)",
+          "type": "varchar(40)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "payment_amount": {
           "name": "payment_amount",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,2)",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
+          "autoincrement": false
         },
         "cash_refund": {
           "name": "cash_refund",
-          "type": "decimal(15,4)",
+          "type": "decimal(15,2)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
@@ -2554,11 +3270,11 @@
         },
         "cash_adjustment": {
           "name": "cash_adjustment",
-          "type": "decimal(15,4)",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'0'"
+          "default": false
         },
         "employee_id": {
           "name": "employee_id",
@@ -2569,31 +3285,63 @@
         },
         "payment_time": {
           "name": "payment_time",
-          "type": "int",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
+        },
+        "reference_code": {
+          "name": "reference_code",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "payment_sale": {
+          "name": "payment_sale",
+          "columns": [
+            "sale_id",
+            "payment_type"
+          ],
+          "isUnique": false
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "columns": [
+            "employee_id"
+          ],
+          "isUnique": false
+        },
+        "payment_time": {
+          "name": "payment_time",
+          "columns": [
+            "payment_time"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
-        "sales_payments_sale_id_sales_sale_id_fk": {
-          "name": "sales_payments_sale_id_sales_sale_id_fk",
-          "tableFrom": "sales_payments",
-          "tableTo": "sales",
+        "ospos_sales_payments_ibfk_1": {
+          "name": "ospos_sales_payments_ibfk_1",
+          "tableFrom": "ospos_sales_payments",
+          "tableTo": "ospos_sales",
           "columnsFrom": [
             "sale_id"
           ],
           "columnsTo": [
             "sale_id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "sales_payments_employee_id_employees_person_id_fk": {
-          "name": "sales_payments_employee_id_employees_person_id_fk",
-          "tableFrom": "sales_payments",
-          "tableTo": "employees",
+        "ospos_sales_payments_ibfk_2": {
+          "name": "ospos_sales_payments_ibfk_2",
+          "tableFrom": "ospos_sales_payments",
+          "tableTo": "ospos_employees",
           "columnsFrom": [
             "employee_id"
           ],
@@ -2604,13 +3352,27 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "ospos_sales_payments_payment_id": {
+          "name": "ospos_sales_payments_payment_id",
+          "columns": [
+            "payment_id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "sales_taxes": {
-      "name": "sales_taxes",
+    "ospos_sales_reward_points": {
+      "name": "ospos_sales_reward_points",
       "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
         "sale_id": {
           "name": "sale_id",
           "type": "int",
@@ -2618,23 +3380,97 @@
           "notNull": true,
           "autoincrement": false
         },
-        "tax_type": {
-          "name": "tax_type",
-          "type": "tinyint",
+        "earned": {
+          "name": "earned",
+          "type": "float",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "round_code": {
-          "name": "round_code",
-          "type": "tinyint",
+        "used": {
+          "name": "used",
+          "type": "float",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "sale_id": {
+          "name": "sale_id",
+          "columns": [
+            "sale_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "ospos_sales_reward_points_ibfk_1": {
+          "name": "ospos_sales_reward_points_ibfk_1",
+          "tableFrom": "ospos_sales_reward_points",
+          "tableTo": "ospos_sales",
+          "columnsFrom": [
+            "sale_id"
+          ],
+          "columnsTo": [
+            "sale_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "ospos_sales_reward_points_id": {
+          "name": "ospos_sales_reward_points_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "ospos_sales_taxes": {
+      "name": "ospos_sales_taxes",
+      "columns": {
+        "sales_taxes_id": {
+          "name": "sales_taxes_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "sale_id": {
+          "name": "sale_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "jurisdiction_id": {
+          "name": "jurisdiction_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tax_category_id": {
+          "name": "tax_category_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tax_type": {
+          "name": "tax_type",
+          "type": "smallint",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "tax_group": {
           "name": "tax_group",
-          "type": "varchar(255)",
+          "type": "varchar(32)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -2644,40 +3480,78 @@
           "type": "decimal(15,4)",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
+          "autoincrement": false
         },
         "sale_tax_amount": {
           "name": "sale_tax_amount",
           "type": "decimal(15,4)",
           "primaryKey": false,
           "notNull": true,
+          "autoincrement": false
+        },
+        "print_sequence": {
+          "name": "print_sequence",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
           "autoincrement": false,
-          "default": "'0'"
+          "default": 0
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tax_rate": {
+          "name": "tax_rate",
+          "type": "decimal(15,4)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sales_tax_code_id": {
+          "name": "sales_tax_code_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "rounding_code": {
+          "name": "rounding_code",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         }
       },
-      "indexes": {},
-      "foreignKeys": {
-        "sales_taxes_sale_id_sales_sale_id_fk": {
-          "name": "sales_taxes_sale_id_sales_sale_id_fk",
-          "tableFrom": "sales_taxes",
-          "tableTo": "sales",
-          "columnsFrom": [
-            "sale_id"
+      "indexes": {
+        "print_sequence": {
+          "name": "print_sequence",
+          "columns": [
+            "sale_id",
+            "print_sequence",
+            "tax_group"
           ],
-          "columnsTo": [
-            "sale_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "isUnique": false
         }
       },
-      "compositePrimaryKeys": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "ospos_sales_taxes_sales_taxes_id": {
+          "name": "ospos_sales_taxes_sales_taxes_id",
+          "columns": [
+            "sales_taxes_id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "sessions": {
-      "name": "sessions",
+    "ospos_sessions": {
+      "name": "ospos_sessions",
       "columns": {
         "id": {
           "name": "id",
@@ -2690,39 +3564,49 @@
           "name": "ip_address",
           "type": "varchar(45)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "timestamp": {
           "name": "timestamp",
-          "type": "int",
+          "type": "timestamp",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "CURRENT_TIMESTAMP"
         },
         "data": {
           "name": "data",
-          "type": "text",
+          "type": "blob",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "ospos_sessions_timestamp": {
+          "name": "ospos_sessions_timestamp",
+          "columns": [
+            "timestamp"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "sessions_id": {
-          "name": "sessions_id",
+        "PRIMARY": {
+          "name": "PRIMARY",
           "columns": [
-            "id"
+            "id",
+            "ip_address"
           ]
         }
       },
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "stock_locations": {
-      "name": "stock_locations",
+    "ospos_stock_locations": {
+      "name": "ospos_stock_locations",
       "columns": {
         "location_id": {
           "name": "location_id",
@@ -2735,23 +3619,46 @@
           "name": "location_name",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "deleted": {
           "name": "deleted",
-          "type": "tinyint",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": false
+        },
+        "is_default": {
+          "name": "is_default",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "tinyint unsigned",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "sort_order": {
+          "name": "sort_order",
+          "columns": [
+            "sort_order"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "stock_locations_location_id": {
-          "name": "stock_locations_location_id",
+        "ospos_stock_locations_location_id": {
+          "name": "ospos_stock_locations_location_id",
           "columns": [
             "location_id"
           ]
@@ -2760,8 +3667,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "suppliers": {
-      "name": "suppliers",
+    "ospos_suppliers": {
+      "name": "ospos_suppliers",
       "columns": {
         "person_id": {
           "name": "person_id",
@@ -2774,14 +3681,14 @@
           "name": "company_name",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "agency_name": {
           "name": "agency_name",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "account_number": {
@@ -2791,51 +3698,82 @@
           "notNull": false,
           "autoincrement": false
         },
-        "deleted": {
-          "name": "deleted",
-          "type": "tinyint",
+        "tax_id": {
+          "name": "tax_id",
+          "type": "varchar(32)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": "''"
+        },
+        "deleted": {
+          "name": "deleted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "category": {
+          "name": "category",
+          "type": "tinyint",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "account_number": {
+          "name": "account_number",
+          "columns": [
+            "account_number"
+          ],
+          "isUnique": true
+        },
+        "category": {
+          "name": "category",
+          "columns": [
+            "category"
+          ],
+          "isUnique": false
+        },
+        "company_name": {
+          "name": "company_name",
+          "columns": [
+            "company_name",
+            "deleted"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
-        "suppliers_person_id_people_person_id_fk": {
-          "name": "suppliers_person_id_people_person_id_fk",
-          "tableFrom": "suppliers",
-          "tableTo": "people",
+        "ospos_suppliers_ibfk_1": {
+          "name": "ospos_suppliers_ibfk_1",
+          "tableFrom": "ospos_suppliers",
+          "tableTo": "ospos_people",
           "columnsFrom": [
             "person_id"
           ],
           "columnsTo": [
             "person_id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
-        "suppliers_person_id": {
-          "name": "suppliers_person_id",
+        "ospos_suppliers_person_id": {
+          "name": "ospos_suppliers_person_id",
           "columns": [
             "person_id"
           ]
         }
       },
-      "uniqueConstraints": {
-        "suppliers_account_number_unique": {
-          "name": "suppliers_account_number_unique",
-          "columns": [
-            "account_number"
-          ]
-        }
-      },
+      "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "tax_categories": {
-      "name": "tax_categories",
+    "ospos_tax_categories": {
+      "name": "ospos_tax_categories",
       "columns": {
         "tax_category_id": {
           "name": "tax_category_id",
@@ -2846,32 +3784,32 @@
         },
         "tax_category": {
           "name": "tax_category",
-          "type": "varchar(255)",
+          "type": "varchar(32)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "tax_group_seq": {
-          "name": "tax_group_seq",
-          "type": "varchar(255)",
+        "tax_group_sequence": {
+          "name": "tax_group_sequence",
+          "type": "tinyint",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "deleted": {
           "name": "deleted",
-          "type": "tinyint",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": false
         }
       },
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "tax_categories_tax_category_id": {
-          "name": "tax_categories_tax_category_id",
+        "ospos_tax_categories_tax_category_id": {
+          "name": "ospos_tax_categories_tax_category_id",
           "columns": [
             "tax_category_id"
           ]
@@ -2880,77 +3818,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "tax_code_links": {
-      "name": "tax_code_links",
-      "columns": {
-        "tax_code_link_id": {
-          "name": "tax_code_link_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": true
-        },
-        "tax_code_id": {
-          "name": "tax_code_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tax_category_id": {
-          "name": "tax_category_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "jurisdiction_id": {
-          "name": "jurisdiction_id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "tax_rate": {
-          "name": "tax_rate",
-          "type": "decimal(15,4)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
-        },
-        "round_code": {
-          "name": "round_code",
-          "type": "tinyint",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 1
-        },
-        "cascade_sequence": {
-          "name": "cascade_sequence",
-          "type": "tinyint",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "tax_code_links_tax_code_link_id": {
-          "name": "tax_code_links_tax_code_link_id",
-          "columns": [
-            "tax_code_link_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraint": {}
-    },
-    "tax_codes": {
-      "name": "tax_codes",
+    "ospos_tax_codes": {
+      "name": "ospos_tax_codes",
       "columns": {
         "tax_code_id": {
           "name": "tax_code_id",
@@ -2961,7 +3830,7 @@
         },
         "tax_code": {
           "name": "tax_code",
-          "type": "varchar(255)",
+          "type": "varchar(32)",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -2971,36 +3840,39 @@
           "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "''"
         },
         "city": {
           "name": "city",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "state": {
           "name": "state",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "deleted": {
           "name": "deleted",
-          "type": "tinyint",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 0
+          "default": false
         }
       },
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {
-        "tax_codes_tax_code_id": {
-          "name": "tax_codes_tax_code_id",
+        "ospos_tax_codes_tax_code_id": {
+          "name": "ospos_tax_codes_tax_code_id",
           "columns": [
             "tax_code_id"
           ]
@@ -3009,8 +3881,8 @@
       "uniqueConstraints": {},
       "checkConstraint": {}
     },
-    "tax_jurisdictions": {
-      "name": "tax_jurisdictions",
+    "ospos_tax_jurisdictions": {
+      "name": "ospos_tax_jurisdictions",
       "columns": {
         "jurisdiction_id": {
           "name": "jurisdiction_id",
@@ -3023,12 +3895,19 @@
           "name": "jurisdiction_name",
           "type": "varchar(255)",
           "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tax_group": {
+          "name": "tax_group",
+          "type": "varchar(32)",
+          "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
         "tax_type": {
           "name": "tax_type",
-          "type": "varchar(255)",
+          "type": "smallint",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -3040,35 +3919,13 @@
           "notNull": false,
           "autoincrement": false
         },
-        "taxable_amount": {
-          "name": "taxable_amount",
-          "type": "decimal(15,4)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "tax_rate": {
-          "name": "tax_rate",
-          "type": "decimal(15,4)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'0'"
-        },
-        "tax_group": {
-          "name": "tax_group",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "round_code": {
-          "name": "round_code",
+        "tax_group_sequence": {
+          "name": "tax_group_sequence",
           "type": "tinyint",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": 1
+          "default": 0
         },
         "cascade_sequence": {
           "name": "cascade_sequence",
@@ -3080,6 +3937,75 @@
         },
         "deleted": {
           "name": "deleted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        }
+      },
+      "indexes": {
+        "tax_jurisdictions_uq1": {
+          "name": "tax_jurisdictions_uq1",
+          "columns": [
+            "tax_group"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "ospos_tax_jurisdictions_jurisdiction_id": {
+          "name": "ospos_tax_jurisdictions_jurisdiction_id",
+          "columns": [
+            "jurisdiction_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "ospos_tax_rates": {
+      "name": "ospos_tax_rates",
+      "columns": {
+        "tax_rate_id": {
+          "name": "tax_rate_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "rate_tax_code_id": {
+          "name": "rate_tax_code_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rate_tax_category_id": {
+          "name": "rate_tax_category_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rate_jurisdiction_id": {
+          "name": "rate_jurisdiction_id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tax_rate": {
+          "name": "tax_rate",
+          "type": "decimal(15,4)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'0.0000'"
+        },
+        "tax_rounding_code": {
+          "name": "tax_rounding_code",
           "type": "tinyint",
           "primaryKey": false,
           "notNull": true,
@@ -3087,13 +4013,75 @@
           "default": 0
         }
       },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "tax_jurisdictions_jurisdiction_id": {
-          "name": "tax_jurisdictions_jurisdiction_id",
+      "indexes": {
+        "rate_tax_code_id": {
+          "name": "rate_tax_code_id",
           "columns": [
+            "rate_tax_code_id"
+          ],
+          "isUnique": false
+        },
+        "rate_tax_category_id": {
+          "name": "rate_tax_category_id",
+          "columns": [
+            "rate_tax_category_id"
+          ],
+          "isUnique": false
+        },
+        "rate_jurisdiction_id": {
+          "name": "rate_jurisdiction_id",
+          "columns": [
+            "rate_jurisdiction_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "ospos_tax_rates_ibfk_1": {
+          "name": "ospos_tax_rates_ibfk_1",
+          "tableFrom": "ospos_tax_rates",
+          "tableTo": "ospos_tax_categories",
+          "columnsFrom": [
+            "rate_tax_category_id"
+          ],
+          "columnsTo": [
+            "tax_category_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ospos_tax_rates_ibfk_2": {
+          "name": "ospos_tax_rates_ibfk_2",
+          "tableFrom": "ospos_tax_rates",
+          "tableTo": "ospos_tax_codes",
+          "columnsFrom": [
+            "rate_tax_code_id"
+          ],
+          "columnsTo": [
+            "tax_code_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ospos_tax_rates_ibfk_3": {
+          "name": "ospos_tax_rates_ibfk_3",
+          "tableFrom": "ospos_tax_rates",
+          "tableTo": "ospos_tax_jurisdictions",
+          "columnsFrom": [
+            "rate_jurisdiction_id"
+          ],
+          "columnsTo": [
             "jurisdiction_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "ospos_tax_rates_tax_rate_id": {
+          "name": "ospos_tax_rates_tax_rate_id",
+          "columns": [
+            "tax_rate_id"
           ]
         }
       },
@@ -3109,6 +4097,23 @@
   },
   "internal": {
     "tables": {},
-    "indexes": {}
+    "indexes": {
+      "first_name": {
+        "columns": {
+          "`first_name`(191)": {
+            "isExpression": true
+          },
+          "`last_name`(191)": {
+            "isExpression": true
+          },
+          "`email`(191)": {
+            "isExpression": true
+          },
+          "`phone_number`(191)": {
+            "isExpression": true
+          }
+        }
+      }
+    }
   }
 }

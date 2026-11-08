@@ -1,2 +1,0 @@
-ALTER TABLE `customers` ADD `sales_tax_code_id` int;--> statement-breakpoint
-ALTER TABLE `customers` ADD CONSTRAINT `customers_sales_tax_code_id_tax_codes_tax_code_id_fk` FOREIGN KEY (`sales_tax_code_id`) REFERENCES `tax_codes`(`tax_code_id`) ON DELETE no action ON UPDATE no action;
