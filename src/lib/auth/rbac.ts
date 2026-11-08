@@ -1,78 +1,106 @@
-import { and, eq, like, ne, sql } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
-import { employees, grants, permissions, modules } from "@/db/schema";
+import { and, asc, eq, like, ne } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { appConfig, employees, grants, modules, permissions } from "@/db/schema";
+import { ADMIN_MODULES } from "@/lib/constants";
 
-export const ADMIN_MODULES = [
-  "customers", "employees", "giftcards", "items", "item_kits",
-  "messages", "receivings", "reports", "sales", "config", "suppliers",
-] as const;
+export { ADMIN_MODULES };
 
 export interface AllowedModule {
   moduleId: string;
   nameLangKey: string;
   descLangKey: string;
   sort: number;
-  menuGroup: "home" | "office" | "both" | null;
+  menuGroup: string | null;
 }
 
-export function isAdmin(personId: number): boolean {
+export async function isAdmin(personId: number): Promise<boolean> {
   if (personId === 1) return true;
-  const db = getDbSync();
-  const granted = db
-    .select({ permissionId: grants.permissionId })
-    .from(grants)
-    .where(eq(grants.personId, personId))
-    .all()
-    .map((r) => r.permissionId);
-  const set = new Set(granted);
-  return ADMIN_MODULES.every((m) => set.has(m));
-}
-
-export function hasGrant(permissionId: string | null, personId: number | null): boolean {
-  if (permissionId === null) return true;
-  if (personId === null) return false;
-  if (isAdmin(personId)) return true;
-  const db = getDbSync();
-  const row = db
-    .select()
-    .from(grants)
-    .where(and(eq(grants.permissionId, permissionId), eq(grants.personId, personId)))
-    .get();
-  return !!row;
-}
-
-export function hasModuleGrant(moduleId: string, personId: number): boolean {
-  if (isAdmin(personId)) return true;
-  const db = getDbSync();
-  const matching = db
-    .select({ permissionId: grants.permissionId })
-    .from(grants)
-    .where(and(eq(grants.personId, personId), like(grants.permissionId, `${moduleId}%`)))
-    .all();
-  if (matching.length === 0) {
-    const direct = db
-      .select()
-      .from(grants)
-      .where(and(eq(grants.personId, personId), eq(grants.permissionId, moduleId)))
-      .get();
-    return !!direct;
-  }
-  if (matching.length === 1) {
-    const perm = matching[0].permissionId;
-    if (perm === moduleId) return true;
-    const subperms = db
-      .select()
-      .from(permissions)
-      .where(like(permissions.permissionId, `${moduleId}_%`))
-      .all();
-    return subperms.length === 0;
+  for (const moduleId of ADMIN_MODULES) {
+    if (!(await hasGrant(moduleId, personId))) return false;
   }
   return true;
 }
 
-export function getAllowedModules(personId: number, menuGroup: "home" | "office" | "both" = "both"): AllowedModule[] {
-  const db = getDbSync();
-  const rows = db
+/** Exact grant lookup — no admin bypass (`Employee::has_grant`). */
+export async function hasGrant(
+  permissionId: string | null,
+  personId: number | null,
+): Promise<boolean> {
+  if (permissionId === null || permissionId === undefined) return true;
+  if (personId === null || personId === undefined) return false;
+  const db = await getDb();
+  const rows = await db
+    .select({ permissionId: grants.permissionId })
+    .from(grants)
+    .where(and(eq(grants.personId, personId), eq(grants.permissionId, permissionId)))
+    .limit(1);
+  return rows.length === 1;
+}
+
+async function hasSubpermissions(permissionId: string): Promise<boolean> {
+  const db = await getDb();
+  const rows = await db
+    .select({ permissionId: permissions.permissionId })
+    .from(permissions)
+    .where(like(permissions.permissionId, `${permissionId}_%`))
+    .limit(1);
+  return rows.length === 0;
+}
+
+/**
+ * `Employee::has_module_grant`: prefix-match the grants table. A single
+ * matching grant is only sufficient when the permission has no subpermissions.
+ */
+export async function hasModuleGrant(
+  permissionId: string,
+  personId: number,
+): Promise<boolean> {
+  const db = await getDb();
+  const matching = await db
+    .select({ permissionId: grants.permissionId })
+    .from(grants)
+    .where(and(eq(grants.personId, personId), like(grants.permissionId, `${permissionId}%`)));
+  if (matching.length !== 1) return matching.length !== 0;
+  return hasSubpermissions(permissionId);
+}
+
+/** `Employee::get_menu_group`. */
+export async function getMenuGroup(
+  permissionId: string,
+  personId: number | null,
+): Promise<string> {
+  if (personId === null) return "home";
+  const db = await getDb();
+  const rows = await db
+    .select({ menuGroup: grants.menuGroup })
+    .from(grants)
+    .where(and(eq(grants.permissionId, permissionId), eq(grants.personId, personId)))
+    .limit(1);
+  return rows[0]?.menuGroup ?? "home";
+}
+
+/**
+ * `Employee::canModifyEmployee`:
+ * - self: allowed unless the target is an admin and the actor is not.
+ * - target is admin and actor is not: denied.
+ * - otherwise allowed.
+ */
+export async function canModifyEmployee(
+  targetPersonId: number,
+  currentPersonId: number,
+): Promise<boolean> {
+  if (targetPersonId === currentPersonId) {
+    return !(await isAdmin(targetPersonId)) || (await isAdmin(currentPersonId));
+  }
+  if ((await isAdmin(targetPersonId)) && !(await isAdmin(currentPersonId))) {
+    return false;
+  }
+  return true;
+}
+
+async function allowedModules(personId: number, menuGroups: string[]): Promise<AllowedModule[]> {
+  const db = await getDb();
+  const rows = await db
     .select({
       moduleId: modules.moduleId,
       nameLangKey: modules.nameLangKey,
@@ -81,26 +109,73 @@ export function getAllowedModules(personId: number, menuGroup: "home" | "office"
       menuGroup: grants.menuGroup,
     })
     .from(modules)
-    .innerJoin(grants, eq(grants.permissionId, modules.moduleId))
-    .where(and(eq(grants.personId, personId), eq(modules.sort, sql`0`)))
-    .all()
-    .filter((r) => menuGroup === "both" || r.menuGroup === menuGroup || r.menuGroup === "both");
-  const seen = new Set<string>();
-  return rows.filter((r) => {
-    if (seen.has(r.moduleId)) return false;
-    seen.add(r.moduleId);
-    return true;
-  });
+    .innerJoin(permissions, eq(permissions.permissionId, modules.moduleId))
+    .innerJoin(grants, eq(grants.permissionId, permissions.permissionId))
+    .where(and(eq(grants.personId, personId), ne(modules.sort, 0)))
+    .orderBy(asc(modules.sort));
+  return rows.filter(
+    (row) => row.menuGroup !== null && menuGroups.includes(row.menuGroup),
+  );
 }
 
-export function getAllGrantedPermissions(personId: number): string[] {
-  const db = getDbSync();
-  return db
+export function getAllowedModules(
+  personId: number,
+  menuGroup: "home" | "office" | "both" = "both",
+): Promise<AllowedModule[]> {
+  const menuGroups =
+    menuGroup === "both" ? ["home", "office", "both"] : [menuGroup, "both"];
+  return allowedModules(personId, menuGroups);
+}
+
+export function getAllowedHomeModules(personId: number): Promise<AllowedModule[]> {
+  return allowedModules(personId, ["home", "both"]);
+}
+
+export function getAllowedOfficeModules(personId: number): Promise<AllowedModule[]> {
+  return allowedModules(personId, ["office", "both"]);
+}
+
+export async function getAllGrantedPermissions(personId: number): Promise<string[]> {
+  const db = await getDb();
+  const rows = await db
     .select({ permissionId: grants.permissionId })
     .from(grants)
-    .where(eq(grants.personId, personId))
-    .all()
-    .map((r) => r.permissionId);
+    .where(eq(grants.personId, personId));
+  return rows.map((row) => row.permissionId);
 }
 
-export { ADMIN_MODULES as ADMIN_MODULES_LIST };
+export async function getEmployeeGrants(
+  personId: number,
+): Promise<{ permissionId: string; personId: number; menuGroup: string | null }[]> {
+  const db = await getDb();
+  return db
+    .select({
+      permissionId: grants.permissionId,
+      personId: grants.personId,
+      menuGroup: grants.menuGroup,
+    })
+    .from(grants)
+    .where(eq(grants.personId, personId));
+}
+
+/** Active employee row for login; mirrors `employees.deleted = 0`. */
+export async function getEmployeeByUsername(username: string) {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(employees)
+    .where(and(eq(employees.username, username), eq(employees.deleted, false)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** `Appconfig::get_value` used by login/install state. */
+export async function getAppConfigValue(key: string): Promise<string | null> {
+  const db = await getDb();
+  const rows = await db
+    .select({ value: appConfig.value })
+    .from(appConfig)
+    .where(eq(appConfig.key, key))
+    .limit(1);
+  return rows[0]?.value ?? null;
+}

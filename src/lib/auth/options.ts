@@ -1,9 +1,16 @@
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { verifyPassword } from "./password";
+import { getMenuGroup } from "./rbac";
+import { createAppSession, requestIp } from "@/lib/session";
+import { loadConfig } from "@/lib/config";
 
 const allowedHostnamesRaw = process.env.ALLOWED_HOSTNAMES;
-if (process.env.NODE_ENV === "production" && !allowedHostnamesRaw) {
+if (
+  process.env.NODE_ENV === "production" &&
+  !allowedHostnamesRaw &&
+  process.env.NEXT_PHASE !== "phase-production-build"
+) {
   throw new Error(
     "ALLOWED_HOSTNAMES env is required in production (GHSA-jchf-7hr6-h4f3 mitigation).",
   );
@@ -11,10 +18,7 @@ if (process.env.NODE_ENV === "production" && !allowedHostnamesRaw) {
 
 export const config = {
   trustHost: true,
-  ...(allowedHostnamesRaw
-    ? { allowedHostnames: allowedHostnamesRaw.split(",").map((h) => h.trim()).filter(Boolean) }
-    : {}),
-  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 7 },
+  session: { strategy: "jwt", maxAge: 7200 },
   pages: { signIn: "/login" },
   providers: [
     Credentials({
@@ -23,18 +27,26 @@ export const config = {
         username: { label: "Username", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(creds) {
-        const username = creds?.username as string | undefined;
-        const password = creds?.password as string | undefined;
+      async authorize(credentials, request) {
+        await loadConfig();
+        const username = credentials?.username as string | undefined;
+        const password = credentials?.password as string | undefined;
         if (!username || !password) return null;
         const user = await verifyPassword(username, password);
         if (!user) return null;
+        // CI4 regenerates the session id on login; a fresh app session row has
+        // no cart state, which is the observable effect of that regeneration.
+        const appSessionId = await createAppSession(user.personId, requestIp(request));
+        const menuGroup = await getMenuGroup("home", user.personId);
         return {
           id: String(user.personId),
           name: user.username,
           personId: user.personId,
           language: user.language ?? "english",
           languageCode: user.languageCode ?? "en",
+          appSessionId,
+          sessionIp: requestIp(request),
+          menuGroup,
         };
       },
     }),
@@ -42,17 +54,39 @@ export const config = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.personId = (user as any).personId;
-        token.language = (user as any).language;
-        token.languageCode = (user as any).languageCode;
+        const typed = user as {
+          personId?: number;
+          language?: string;
+          languageCode?: string;
+          appSessionId?: string;
+          sessionIp?: string;
+          menuGroup?: string;
+        };
+        token.personId = typed.personId;
+        token.language = typed.language;
+        token.languageCode = typed.languageCode;
+        token.appSessionId = typed.appSessionId;
+        token.sessionIp = typed.sessionIp;
+        token.menuGroup = typed.menuGroup;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).personId = token.personId;
-        (session.user as any).language = token.language;
-        (session.user as any).languageCode = token.languageCode;
+        const typed = token as {
+          personId?: number;
+          language?: string;
+          languageCode?: string;
+          appSessionId?: string;
+          sessionIp?: string;
+          menuGroup?: string;
+        };
+        session.user.personId = typed.personId;
+        session.user.language = typed.language;
+        session.user.languageCode = typed.languageCode;
+        session.user.appSessionId = typed.appSessionId;
+        session.user.sessionIp = typed.sessionIp;
+        session.user.menuGroup = typed.menuGroup;
       }
       return session;
     },
@@ -76,21 +110,17 @@ declare module "next-auth" {
       personId?: number;
       language?: string;
       languageCode?: string;
+      appSessionId?: string;
+      sessionIp?: string;
+      menuGroup?: string;
     };
   }
   interface User {
     personId?: number;
     language?: string;
     languageCode?: string;
-  }
-}
-
-import type { DefaultJWT } from "next-auth/jwt";
-
-declare module "next-auth" {
-  interface JWT extends DefaultJWT {
-    personId?: number;
-    language?: string;
-    languageCode?: string;
+    appSessionId?: string;
+    sessionIp?: string;
+    menuGroup?: string;
   }
 }
