@@ -8,7 +8,7 @@ export default async function SecureLayout({ children }: { children: React.React
   const session = await auth();
   if (!session?.user?.personId) redirect("/login");
   const personId = session.user.personId;
-  const allowedModules = getAllowedModules(personId, "both");
+  const allowedModules = await getAllowedModules(personId, "both");
 
   return (
     <div className="flex min-h-screen bg-[var(--color-background)]">

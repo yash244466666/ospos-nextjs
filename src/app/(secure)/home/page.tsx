@@ -1,27 +1,27 @@
 import { auth } from "@/lib/auth/options";
-import { getDbSync } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { sales, itemQuantities, items } from "@/db/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
+import { loadConfig, timezone } from "@/lib/config";
+import { formatInstant } from "@/lib/datetime";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShoppingCart, Package, PauseCircle, ArrowRight, TrendingUp, DollarSign } from "lucide-react";
 import Link from "next/link";
 
 export default async function HomePage() {
   const session = await auth();
-  const db = getDbSync();
-  const startOfDay = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
-  const salesToday = db.select({ count: sql<number>`COUNT(*)` }).from(sales)
-    .where(and(eq(sales.saleStatus, 0), gte(sales.saleTime, startOfDay)))
-    .get()?.count ?? 0;
-  const itemsInStock = db.select({ count: sql<number>`COUNT(DISTINCT ${itemQuantities.itemId})` })
-    .from(itemQuantities).where(gte(itemQuantities.quantity, 1))
-    .get()?.count ?? 0;
-  const suspendedSales = db.select({ count: sql<number>`COUNT(*)` }).from(sales)
-    .where(eq(sales.saleStatus, 1))
-    .get()?.count ?? 0;
-  const totalItems = db.select({ count: sql<number>`COUNT(*)` }).from(items)
-    .where(eq(items.deleted, false))
-    .get()?.count ?? 0;
+  await loadConfig();
+  const db = await getDb();
+  // eslint-disable-next-line react-hooks/purity
+  const startOfDay = formatInstant(new Date(Date.now() - 24 * 60 * 60 * 1000), timezone(), "Y-m-d H:i:s");
+  const salesToday = Number((await db.select({ count: sql<number>`COUNT(*)` }).from(sales)
+    .where(and(eq(sales.saleStatus, 0), gte(sales.saleTime, startOfDay))))[0]?.count ?? 0);
+  const itemsInStock = Number((await db.select({ count: sql<number>`COUNT(DISTINCT ${itemQuantities.itemId})` })
+    .from(itemQuantities).where(gte(itemQuantities.quantity, "1")))[0]?.count ?? 0);
+  const suspendedSales = Number((await db.select({ count: sql<number>`COUNT(*)` }).from(sales)
+    .where(eq(sales.saleStatus, 1)))[0]?.count ?? 0);
+  const totalItems = Number((await db.select({ count: sql<number>`COUNT(*)` }).from(items)
+    .where(eq(items.deleted, false)))[0]?.count ?? 0);
 
   return (
     <div className="space-y-6">
