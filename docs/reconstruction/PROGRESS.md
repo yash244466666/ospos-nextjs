@@ -13,12 +13,12 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 | P5 Sales | `port/p5-sales` | PARTIAL | sale calculator/payment tests 17/17 | cart/save/returns/suspend/edit/actions/UI; O15/O16 refinement pending |
 | P6 Receivings | `port/p6-receivings` | PARTIAL | lib/model/UI ported | cost-before-quantity, requisition bug replicated |
 | P7 Ancillary | `port/p7-ancillary` | PARTIAL | repositories ported | SMS restored to upstream config-presence stub |
-| P8 Reports | `port/p8-reports` | PARTIAL | every report key executes on SQLite and MySQL; exact row/summary diffs not yet run | 20 upstream reports + graphical twins, filters, summary blocks |
+| P8 Reports | `port/p8-reports` | PARTIAL | every report key executes on both dialects; oracle-driven differential passes all 11 summary reports (205 values) against upstream `getData`/`getSummaryData` | extend the differential to detailed/inventory/specific/graphical reports |
 | P9 Config & shell | `port/p9-config` | PARTIAL | 138-key tab UI, label resolution, secret masking, batch saves | child managers/visibility/side-effect refinement pending |
 | P10 Documents | `port/p10-documents` | PARTIAL | receipt data builder is decimal-only and carries employee/invoice/line/tax/payment fields plus the `receipt_*` flag matrix; HTML receipt honors company/description/serial/tax-ind/total-discount flags with localized labels; 4 fixture tests | `receipt_short`/invoice template variants and email HTML parity pending |
 | P11 i18n | `port/p11-i18n` | PARTIAL | 46 locales × 24 files; 72,680 keys parity PASS; shell labels localized | bn pack and hard-coded UI string sweep pending |
 | P12 Hardening | `port/p12-hardening` | PARTIAL | no-stubs + sql-safety PASS; throttle rewritten to the upstream filter contract (11 unit tests); `/api/migrate` re-checks credentials, throttles and locks; mutating route handlers validate Origin/Referer (6 unit tests); login localized | session-lifecycle audit pending |
-| P13 Differential closure | `port/p13-differential` | PARTIAL | Oracle DB differential: config 138 keys PASS, seed (18/36/35/5/2/1) PASS, schema 39 tables/286 cols PASS; MySQL integration suite 29/29 on config/sequence, sale, items, receiving, reports, all ancillary repositories | scenario matrix and row/output diffs pending |
+| P13 Differential closure | `port/p13-differential` | PARTIAL | Oracle DB differential: config 138 keys PASS, seed (18/36/35/5/2/1) PASS, schema 39 tables/286 cols PASS; report differential 11/11 summary reports (205 values) PASS; MySQL integration 29/29 | detailed/inventory/specific reports and remaining §9.3 scenarios pending |
 
 ## Gate evidence — 2026-11-08 session
 
@@ -32,6 +32,7 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 | `npm run test:e2e` | 72/72 |
 | `npm run parity` (SQLite) | schema 38 tables/286 cols, config 138, seed 18/36/36/5/2/1, locales 46×1104×72680, reports 31, no-stubs, SQL safety |
 | `npm run parity` (MySQL) | schema 39 tables/286 cols, config 138, seed 18/36/36/5/2/1, locales, reports 31, no-stubs, SQL safety |
+| `npm run parity:report-differential` | 11/11 summary reports, 205 values PASS against the PHP oracle |
 
 ## Decisions log
 
@@ -58,6 +59,9 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 | 2026-11-08 | Throttle falls back to `AUTH_SECRET` when `THROTTLE_KEY` is unset | Upstream provisions `throttle.key` into a writable `.env`; the target has no writable `.env` contract. Capacity/window/env semantics match `App\Filters\Throttle` |
 | 2026-11-08 | E2E seeds the database in the Playwright web-server command, not `globalSetup` | Playwright starts the web server before `globalSetup`; unlinking the SQLite file raced the open handle and left the server on an empty inode |
 | 2026-11-08 | `/api/migrate` requires credentials when employees exist and uses a `.migration.lock` file | Mirrors `Login::migrate`'s `login_check` gate and `MY_Migration::runLocked()`; CSRF exemption matches upstream `Filters.php` |
+| 2026-11-08 | mysql2 pools set `dateStrings: true` | OSPOS timestamps are SQL datetime text; mysql2 otherwise returns JS `Date` objects, which broke `sale_date` in reports under MySQL |
+| 2026-11-08 | Summary reports compute their summary with a separate overall aggregate | `Summary_report::getSummaryData()` is ungrouped; summing displayed rows is wrong for customers/suppliers where walk-in sales have no row |
+| 2026-11-08 | Report differential compares oracle model rows to the registry over one fixture dataset | `scripts/parity/fixtures/report-fixture.sql` + `report-probe.php` + `report-differential.ts`; runs 11 summary reports and 205 values |
 
 ## Open follow-ups
 

@@ -46,7 +46,10 @@ export interface ReportDef {
   columns: ReportColumn[];
   chart?: ReportChart;
   run: (filters: ReportFilters) => Promise<Record<string, unknown>[]>;
-  summary?: (rows: Record<string, unknown>[]) => Record<string, unknown>;
+  summary?: (
+    rows: Record<string, unknown>[],
+    filters: ReportFilters,
+  ) => Record<string, unknown> | Promise<Record<string, unknown>>;
 }
 
 function concatExpr(...parts: string[]): string {
@@ -213,6 +216,21 @@ function mapSalesRows(
   });
 }
 
+function salesWhere(
+  filters: ReportFilters,
+  options: { extraWhere?: string[]; includeLocation?: boolean } = {},
+): { clause: string; params: unknown[] } {
+  const date = datePredicate("sales.sale_time", filters);
+  const clauses = [date.clause, saleTypePredicate(filters.saleType ?? "complete")];
+  const params = [...date.params];
+  if (options.includeLocation !== false && filters.locationId && filters.locationId !== "all") {
+    clauses.push("si.item_location = ?");
+    params.push(Number(filters.locationId));
+  }
+  clauses.push(...(options.extraWhere ?? []));
+  return { clause: clauses.map((clause) => `(${clause})`).join(" AND "), params };
+}
+
 async function salesAggregate(
   filters: ReportFilters,
   selection: string,
@@ -223,23 +241,44 @@ async function salesAggregate(
   await loadConfig();
   const d = totalsDecimals();
   const included = getConfigBool("tax_included", false);
-  const date = datePredicate("sales.sale_time", filters);
-  const clauses = [date.clause, saleTypePredicate(filters.saleType ?? "complete")];
-  const params = [...date.params];
-  if (options.includeLocation !== false && filters.locationId && filters.locationId !== "all") {
-    clauses.push("si.item_location = ?");
-    params.push(Number(filters.locationId));
-  }
-  clauses.push(...(options.extraWhere ?? []));
+  const where = salesWhere(filters, options);
   const rows = await reportQuery<Record<string, unknown>>(
     `SELECT ${commonTotals(d)}, ${selection}
      ${saleFrom(d)}
-     WHERE ${clauses.map((clause) => `(${clause})`).join(" AND ")}
+     WHERE ${where.clause}
      GROUP BY ${groupBy}
      ORDER BY ${orderBy}`,
-    params,
+    where.params,
   );
   return { rows, included };
+}
+
+/**
+ * `Summary_report::getSummaryData()` — the overall aggregate for the filter,
+ * independent of how the rows are grouped. Summing displayed rows is only
+ * equivalent when the grouping covers every sale (it does not for customers
+ * or suppliers, where walk-in sales have no row).
+ */
+async function salesTotalsSummary(
+  _rows: Record<string, unknown>[],
+  filters: ReportFilters,
+): Promise<Record<string, unknown>> {
+  await loadConfig();
+  const d = totalsDecimals();
+  const included = getConfigBool("tax_included", false);
+  const where = salesWhere(filters);
+  const rows = await reportQuery<Record<string, unknown>>(
+    `SELECT ${commonTotals(d)} ${saleFrom(d)} WHERE ${where.clause}`,
+    where.params,
+  );
+  const totals = totalsFor(rows[0] ?? {}, included);
+  return {
+    subtotal: totals.subtotal,
+    tax: totals.tax,
+    total: totals.total,
+    cost: totals.cost,
+    profit: totals.profit,
+  };
 }
 
 function summarySales(): ReportDef {
@@ -256,7 +295,7 @@ function summarySales(): ReportDef {
       ...totalColumns(),
     ],
     chart: "line",
-    summary: totalsSummary,
+    summary: salesTotalsSummary,
     async run(filters) {
       const { rows, included } = await salesAggregate(
         filters,
@@ -268,6 +307,7 @@ function summarySales(): ReportDef {
       );
       return mapSalesRows(rows, included, (row) => ({
         sale_date: displayDate(row.sale_date),
+        sale_dateRaw: String(row.sale_date ?? ""),
         sales: toQuantityDecimals(String(Number(row.sale_count ?? 0))),
         quantity: quantity(row.quantity_purchased),
       }));
@@ -288,7 +328,7 @@ function summaryCategories(): ReportDef {
       ...totalColumns(),
     ],
     chart: "pie",
-    summary: totalsSummary,
+    summary: salesTotalsSummary,
     async run(filters) {
       const d = totalsDecimals();
       const baseIncluded = getConfigBool("tax_included", false);
@@ -352,7 +392,12 @@ function summaryExpensesCategories(): ReportDef {
         total_amount: money(row.total_amount),
         total_tax_amount: money(row.total_tax_amount),
         total_amountRaw: Number(row.total_amount ?? 0),
-        total_tax_amountRaw: Number(row.total_tax_amount ?? 0),
+        // SUM() over all-NULL tax amounts is NULL upstream; keep it null so the
+        // summary block matches instead of reporting 0.
+        total_tax_amountRaw:
+          row.total_tax_amount === null || row.total_tax_amount === undefined
+            ? null
+            : Number(row.total_tax_amount),
       }));
     },
     summary(rows) {
@@ -361,10 +406,11 @@ function summaryExpensesCategories(): ReportDef {
           (total, row) => total + Number(row.total_amountRaw ?? 0),
           0,
         ),
-        expenses_total_tax_amount: rows.reduce(
-          (total, row) => total + Number(row.total_tax_amountRaw ?? 0),
-          0,
-        ),
+        expenses_total_tax_amount: rows.every(
+          (row) => row.total_tax_amountRaw === null || row.total_tax_amountRaw === undefined,
+        )
+          ? null
+          : rows.reduce((total, row) => total + Number(row.total_tax_amountRaw ?? 0), 0),
       };
     },
   };
@@ -384,7 +430,7 @@ function summaryCustomers(): ReportDef {
       ...totalColumns(),
     ],
     chart: "hbar",
-    summary: totalsSummary,
+    summary: salesTotalsSummary,
     async run(filters) {
       await loadConfig();
       const d = totalsDecimals();
@@ -430,7 +476,7 @@ function summarySuppliers(): ReportDef {
       ...totalColumns(),
     ],
     chart: "pie",
-    summary: totalsSummary,
+    summary: salesTotalsSummary,
     async run(filters) {
       await loadConfig();
       const d = totalsDecimals();
@@ -479,7 +525,7 @@ function summaryItems(): ReportDef {
       ...totalColumns(),
     ],
     chart: "hbar",
-    summary: totalsSummary,
+    summary: salesTotalsSummary,
     async run(filters) {
       await loadConfig();
       const d = totalsDecimals();
@@ -530,7 +576,7 @@ function summaryEmployees(): ReportDef {
       ...totalColumns(),
     ],
     chart: "pie",
-    summary: totalsSummary,
+    summary: salesTotalsSummary,
     async run(filters) {
       await loadConfig();
       const d = totalsDecimals();
@@ -678,9 +724,7 @@ function summarySalesTaxes(): ReportDef {
         taxRaw: Number(row.tax ?? 0),
       }));
     },
-    summary(rows) {
-      return { tax: rows.reduce((total, row) => total + Number(row.taxRaw ?? 0), 0) };
-    },
+    summary: salesTotalsSummary,
   };
 }
 
@@ -743,6 +787,7 @@ function summaryDiscounts(): ReportDef {
         total: money(row.total),
       }));
     },
+    summary: salesTotalsSummary,
   };
 }
 
@@ -853,6 +898,7 @@ function summaryPayments(): ReportDef {
         trans_due: row.trans_due === "" ? "" : money(row.trans_due),
       }));
     },
+    summary: salesTotalsSummary,
   };
 }
 

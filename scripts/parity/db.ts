@@ -11,7 +11,7 @@ export async function queryRows<T = Record<string, unknown>>(
   params: unknown[] = [],
 ): Promise<T[]> {
   if (DRIVER === "mysql") {
-    const pool = mysql.createPool(URL);
+    const pool = mysql.createPool({ uri: URL, dateStrings: true });
     try {
       const [rows] = await pool.query(sqlText, params);
       return rows as T[];

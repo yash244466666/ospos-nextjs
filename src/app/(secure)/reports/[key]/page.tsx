@@ -16,7 +16,7 @@ export default async function ReportPage({
   if (!def) notFound();
   await requireGrant(def.permission);
   const filters = await searchParams;
-  const rows = await runReport(def, {
+  const reportFilters = {
     start: filters.start,
     end: filters.end,
     saleType: filters.sale_type ?? filters.saleType,
@@ -28,7 +28,8 @@ export default async function ReportPage({
     employeeId: filters.employee_id ?? filters.employeeId,
     supplierId: filters.supplier_id ?? filters.supplierId,
     receivingType: filters.receiving_type ?? filters.receivingType,
-  });
+  };
+  const rows = await runReport(def, reportFilters);
   const serializableDef = {
     key: def.key,
     title: def.title,
@@ -37,7 +38,10 @@ export default async function ReportPage({
     columns: def.columns,
     chart: def.chart,
     inputs: def.inputs,
-    summary: def.summary && rows.length > 0 ? def.summary(rows) : undefined,
+    summary:
+      def.summary && rows.length > 0
+        ? await def.summary(rows, reportFilters)
+        : undefined,
   };
   const locations = def.inputs.includes("location_id") || def.inputs.includes("locationId")
     ? await getStockLocations()

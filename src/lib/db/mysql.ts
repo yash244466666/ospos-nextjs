@@ -14,6 +14,10 @@ export function getRawMysqlPool(): mysql.Pool {
       uri: url,
       multipleStatements: true,
       decimalNumbers: false,
+      // OSPOS stores timestamps as SQL datetime text and every formatter,
+      // report and document expects a string. Without this mysql2 converts
+      // DATE/DATETIME columns to JS Date objects and parity silently breaks.
+      dateStrings: true,
       timezone: process.env.DB_TIMEZONE ?? "local",
       charset: "utf8mb4",
     });
