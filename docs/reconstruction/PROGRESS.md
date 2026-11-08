@@ -18,7 +18,7 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 | P10 Documents | `port/p10-documents` | PARTIAL | line names/discounts/taxes/subtotal and net payments in the data model | template flag matrix and email HTML parity pending |
 | P11 i18n | `port/p11-i18n` | PARTIAL | 46 locales × 24 files; 72,680 keys parity PASS; shell labels localized | bn pack and hard-coded UI string sweep pending |
 | P12 Hardening | `port/p12-hardening` | PARTIAL | no-stubs + sql-safety PASS | host/CSRF/throttle audits pending |
-| P13 Differential closure | `port/p13-differential` | PARTIAL | Oracle DB differential: config 138 keys PASS, seed (18/36/35/5/2/1) PASS, schema 39 tables/286 cols PASS | scenario matrix and row/output diffs pending |
+| P13 Differential closure | `port/p13-differential` | PARTIAL | Oracle DB differential: config 138 keys PASS, seed (18/36/35/5/2/1) PASS, schema 39 tables/286 cols PASS; MySQL integration suite 29/29 on config/sequence, sale, items, receiving, reports, all ancillary repositories | scenario matrix and row/output diffs pending |
 
 ## Decisions log
 
@@ -39,6 +39,9 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 | 2026-11-08 | `invoice_email_message` default is the bare token string | Oracle value confirms the appendix catalog's trailing annotation was not part of the value |
 | 2026-11-08 | E2E logs in per test instead of reusing a stored cookie | OSPOS carts are session-scoped; reusing a JWT shared one cart across tests |
 | 2026-11-08 | Report SQL uses explicit aliases; upstream report models fail against a prefixed table (UD-23) | Executing `Summary_sales::getData()` on the oracle returns “Unknown column 'ospos_sales_items.sale_id' in 'on clause'”; a CI4 builder defect, documented as a deviation |
+| 2026-11-08 | MySQL sequence acquisition uses a `SELECT … FOR UPDATE` transaction, not `UPDATE … RETURNING` | Plan gotcha #3 assumes MySQL supports `RETURNING`; MySQL 8 does not (only MariaDB). Row locking gives the same observable atomic increment (DEV-01) |
+| 2026-11-08 | Cross-dialect upsert/ignore/insert helpers live in `src/lib/db/insert.ts` | Drizzle exposes `onConflictDoUpdate`/`onConflictDoNothing` for SQLite and `onDuplicateKeyUpdate` for MySQL; three SQLite-only calls failed at runtime under `DB_DRIVER=mysql` |
+| 2026-11-08 | Raw inventory/cleanup writes go through `affectedRows()` | `tx.run()` exists only on the better-sqlite3 handle; Drizzle's MySQL handle requires `execute()` |
 
 ## Open follow-ups
 
@@ -47,7 +50,8 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 - P10 documents: data builder must carry discounts/taxes/flags, print/email variants.
 - P11: `bn` locale pack; replace remaining hard-coded UI strings.
 - P12: CSRF token for server actions/route handlers, login throttle, session audit.
-- P13: differential harness against the Dockerized PHP oracle.
+- P13: scenario-level differential harness against the Dockerized PHP oracle (DB rows + report output), beyond the schema/seed/config checks now in place.
+- MySQL integration coverage is now enforced by `npm run test:mysql` and the `integration-mysql` CI job.
 
 ## Blockers
 
