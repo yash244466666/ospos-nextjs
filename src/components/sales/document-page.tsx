@@ -1,18 +1,24 @@
 import Link from "next/link";
 import { getSale } from "@/lib/sale/sale-model";
-import { buildReceiptData } from "@/lib/pdf/data";
+import { buildSaleDocumentData } from "@/lib/pdf/data";
 import { getConfig, loadConfig } from "@/lib/config";
-import { toCurrency } from "@/lib/i18n/format";
+import { lang } from "@/lib/i18n/lang";
+import { toCurrency, toCurrencyTax, toDecimals, toQuantityDecimals } from "@/lib/i18n/format";
+import { DISCOUNT_TYPE } from "@/lib/constants";
 
 export type DocumentKind = "receipt" | "invoice" | "tax_invoice" | "quote" | "work_order";
 
-const TITLES: Record<DocumentKind, string> = {
-  receipt: "Receipt",
-  invoice: "Invoice",
-  tax_invoice: "Tax Invoice",
-  quote: "Quote",
-  work_order: "Work Order",
+const TITLE_KEYS: Record<DocumentKind, string> = {
+  receipt: "Sales.receipt",
+  invoice: "Sales.invoice",
+  tax_invoice: "Sales.invoice",
+  quote: "Sales.quote",
+  work_order: "Sales.work_order",
 };
+
+function isZero(value: string): boolean {
+  return Number(value) === 0;
+}
 
 export async function SaleDocument({
   saleId,
@@ -23,116 +29,185 @@ export async function SaleDocument({
 }) {
   await loadConfig();
   const sale = await getSale(saleId);
-  const data = await buildReceiptData(saleId);
-  if (!sale || !data) return <div className="p-4">{TITLES[kind]} not found</div>;
+  const data = await buildSaleDocumentData(saleId);
+  if (!sale || !data) {
+    return (
+      <div className="p-4">
+        {lang("Sales.id")}: {saleId}
+      </div>
+    );
+  }
 
   const number =
     kind === "invoice" || kind === "tax_invoice"
-      ? (sale.invoiceNumber ?? String(sale.saleId))
+      ? (data.invoiceNumber ?? String(data.saleId))
       : kind === "quote"
-        ? (sale.quoteNumber ?? String(sale.saleId))
+        ? (data.quoteNumber ?? String(data.saleId))
         : kind === "work_order"
-          ? (sale.workOrderNumber ?? String(sale.saleId))
-          : String(sale.saleId);
+          ? (data.workOrderNumber ?? String(data.saleId))
+          : String(data.saleId);
+  const { flags } = data;
+  const title = lang(TITLE_KEYS[kind]);
+  const printableLines = data.lines.filter((line) => line.printOption === 0);
+  const rowClassName = "border-t border-slate-200";
 
   return (
     <div className="mx-auto max-w-2xl p-4">
       <div className="mb-2 flex justify-between border-b pb-2">
         <div>
-          <div className="text-lg font-bold">{data.company}</div>
-          <div className="text-sm">{data.address}</div>
-          <div className="text-sm">{data.phone}</div>
+          {flags.showCompanyName ? (
+            <div className="text-lg font-bold">{getConfig("company", "")}</div>
+          ) : null}
+          <div className="text-sm whitespace-pre-line">{getConfig("address", "")}</div>
+          <div className="text-sm">{getConfig("phone", "")}</div>
         </div>
         <div className="text-right">
-          <div className="text-lg font-bold">{TITLES[kind]}</div>
-          <div className="text-sm">#{number}</div>
+          <div className="text-lg font-bold">{title}</div>
+          <div className="text-sm">
+            {lang("Sales.id")}: POS {data.saleId}
+          </div>
+          {data.invoiceNumber ? (
+            <div className="text-sm">
+              {lang("Sales.invoice_number")}: {data.invoiceNumber}
+            </div>
+          ) : null}
           <div className="text-sm">{data.saleTime}</div>
         </div>
       </div>
-      <div className="mb-2 text-sm">
-        <div>
-          Customer: <span className="font-medium">{data.customerName}</span>
-        </div>
-        {sale.comment ? <div className="text-slate-600">{sale.comment}</div> : null}
+
+      <div className="mb-2 space-y-0.5 text-sm">
+        {data.customerName ? (
+          <div>
+            {lang("Customers.customer")}: <span className="font-medium">{data.customerName}</span>
+          </div>
+        ) : null}
+        {data.employeeName ? (
+          <div>
+            {lang("Employees.employee")}: {data.employeeName}
+          </div>
+        ) : null}
+        {data.comment ? <div className="text-slate-600">{data.comment}</div> : null}
       </div>
-      <table className="w-full border text-sm">
+
+      <table className="w-full border text-xs" style={{ fontSize: flags.receiptFontSize }}>
         <thead className="bg-slate-100">
           <tr>
-            <th className="p-2 text-left">Description</th>
-            <th className="p-2 text-right">Qty</th>
-            <th className="p-2 text-right">Price</th>
-            <th className="p-2 text-right">Total</th>
+            <th className="p-2 text-left">{lang("Sales.description_abbrv")}</th>
+            <th className="p-2 text-right">{lang("Sales.price")}</th>
+            <th className="p-2 text-right">{lang("Sales.quantity")}</th>
+            <th className="p-2 text-right">{lang("Sales.total")}</th>
+            {flags.showTaxInd ? <th className="p-2 text-left">T</th> : null}
           </tr>
         </thead>
         <tbody>
-          {data.lines.map((line, index) => (
-            <tr key={index} className="border-t">
+          {printableLines.map((line) => (
+            <tr key={`${line.line}`} className={rowClassName}>
               <td className="p-2">
-                <div className="font-medium">{line.name ?? line.description}</div>
-                {line.name && line.description ? (
-                  <div className="text-xs text-slate-500">{line.description}</div>
+                <div className="font-medium">
+                  {line.name ? line.name.charAt(0).toUpperCase() + line.name.slice(1) : ""}{" "}
+                  {line.attributeValues}
+                </div>
+                {flags.showDescription && line.description ? (
+                  <div className="text-[11px] text-slate-500">{line.description}</div>
                 ) : null}
-                {line.serialnumber ? (
-                  <div className="text-xs text-slate-500">{line.serialnumber}</div>
+                {flags.showSerialnumber && line.serialnumber ? (
+                  <div className="text-[11px] text-slate-500">{line.serialnumber}</div>
                 ) : null}
               </td>
-              <td className="p-2 text-right">{line.quantity}</td>
-              <td className="p-2 text-right">{toCurrency(String(line.unitPrice))}</td>
+              <td className="p-2 text-right">{toCurrency(line.price)}</td>
+              <td className="p-2 text-right">{toQuantityDecimals(line.quantity)}</td>
               <td className="p-2 text-right">
-                {toCurrency(String(line.total ?? line.unitPrice * line.quantity))}
+                {toCurrency(flags.showTotalDiscount ? line.total : line.discountedTotal)}
               </td>
+              {flags.showTaxInd ? <td className="p-2">{line.taxedFlag}</td> : null}
             </tr>
           ))}
+          {printableLines.map((line) =>
+            Number(line.discount) > 0 ? (
+              <tr key={`discount-${line.line}`} className={rowClassName}>
+                <td className="p-2 text-slate-600" colSpan={3}>
+                  {line.discountType === DISCOUNT_TYPE.FIXED
+                    ? `${toCurrency(line.discount)} ${lang("Sales.discount")}`
+                    : `${toDecimals(line.discount)} ${lang("Sales.discount_included")}`}
+                </td>
+                <td className="p-2 text-right">{toCurrency(line.discountedTotal)}</td>
+              </tr>
+            ) : null,
+          )}
         </tbody>
       </table>
+
       <div className="mt-2 flex justify-end text-sm">
-        <div className="w-56 space-y-1">
-          {data.subtotal !== undefined ? (
-            <div className="flex justify-between">
-              <span>Subtotal</span>
-              <span>{toCurrency(String(data.subtotal))}</span>
-            </div>
+        <div className="w-64 space-y-1">
+          {flags.showTotalDiscount && !isZero(data.discountTotal) ? (
+            <>
+              <div className="flex justify-between">
+                <span>{lang("Sales.sub_total")}</span>
+                <span>{toCurrency(data.prediscountSubtotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>{lang("Sales.customer_discount")}:</span>
+                <span>{toCurrency(`-${data.discountTotal}`)}</span>
+              </div>
+            </>
           ) : null}
-          {data.lines.some((line) => (line.discount ?? 0) > 0) ? (
-            <div className="flex justify-between">
-              <span>Discount</span>
-              <span>
-                {toCurrency(
-                  String(data.lines.reduce((total, line) => total + (line.discount ?? 0), 0)),
-                )}
-              </span>
-            </div>
+          {flags.showTaxes ? (
+            <>
+              <div className="flex justify-between">
+                <span>{lang("Sales.sub_total")}</span>
+                <span>{toCurrency(data.subtotal)}</span>
+              </div>
+              {data.taxes.map((tax, index) => (
+                <div key={index} className="flex justify-between">
+                  <span>
+                    {Number(tax.rate)}% {tax.name}:
+                  </span>
+                  <span>{toCurrencyTax(tax.amount)}</span>
+                </div>
+              ))}
+            </>
           ) : null}
-          {data.taxes.map((tax, index) => (
-            <div key={index} className="flex justify-between">
-              <span>{tax.name}</span>
-              <span>{toCurrency(String(tax.amount))}</span>
-            </div>
-          ))}
           <div className="flex justify-between border-t pt-1 font-bold">
-            <span>Total</span>
-            <span>{toCurrency(String(data.total))}</span>
+            <span>{lang("Sales.total")}</span>
+            <span>{toCurrency(data.total)}</span>
           </div>
           {data.payments.map((payment, index) => (
             <div key={index} className="flex justify-between">
-              <span>Paid ({payment.type})</span>
-              <span>{toCurrency(String(payment.amount))}</span>
+              <span>
+                {payment.type}
+                {payment.referenceCode ? ` (${payment.referenceCode})` : ""}
+              </span>
+              <span>{toCurrency(payment.amount)}</span>
             </div>
           ))}
-          {data.change !== 0 ? (
+          {!isZero(data.change) ? (
             <div className="flex justify-between">
-              <span>Change</span>
-              <span>{toCurrency(String(data.change))}</span>
+              <span>{lang("Sales.change_due")}</span>
+              <span>{toCurrency(data.change)}</span>
+            </div>
+          ) : null}
+          {!isZero(data.amountDue) ? (
+            <div className="flex justify-between">
+              <span>{lang("Sales.amount_due")}</span>
+              <span>{toCurrency(data.amountDue)}</span>
             </div>
           ) : null}
         </div>
       </div>
+
+      {kind === "invoice" || kind === "tax_invoice" ? (
+        flags.invoiceDefaultComments ? (
+          <div className="mt-4 whitespace-pre-line text-xs text-slate-600">
+            {flags.invoiceDefaultComments}
+          </div>
+        ) : null
+      ) : null}
       <div className="mt-6 text-center text-sm text-slate-600">
-        {getConfig("return_policy", "")}
+        {flags.printFooter || getConfig("return_policy", "")}
       </div>
       <div className="mt-4 text-center">
         <Link href="/sales/register" className="text-blue-600">
-          Back to register
+          {lang("Sales.register")}
         </Link>
       </div>
     </div>
