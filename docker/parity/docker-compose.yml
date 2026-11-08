@@ -1,0 +1,54 @@
+services:
+  mysql:
+    image: mysql:8.4
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_520_ci
+      - --default-time-zone=+06:00
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ospos
+      MYSQL_USER: ospos
+      MYSQL_PASSWORD: ospos
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uospos", "-pospos"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    ports:
+      - "3307:3306"
+    tmpfs:
+      - /var/lib/mysql
+
+  oracle:
+    build:
+      context: .
+      dockerfile: Dockerfile.oracle
+      additional_contexts:
+        oracle: /home/yash/ospos
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      CI_ENVIRONMENT: production
+      app.baseURL: http://oracle/
+      DB_HOST: mysql
+    ports:
+      - "8088:80"
+
+  target:
+    profiles: ["target"]
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_DRIVER: mysql
+      DATABASE_URL: mysql://ospos:ospos@mysql:3306/ospos
+      AUTH_SECRET: parity-secret
+      NEXTAUTH_URL: http://target:3000
+      ALLOWED_HOSTNAMES: target,localhost
+    ports:
+      - "3008:3000"

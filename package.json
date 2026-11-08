@@ -15,7 +15,17 @@
     "db:studio": "drizzle-kit studio --config=drizzle.config.sqlite.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "parity": "tsx scripts/parity/run-all.ts",
+    "parity:schema": "tsx scripts/parity/sqlite-schema.ts",
+    "parity:mysql-schema": "tsx scripts/parity/mysql-schema.ts",
+    "parity:seed": "tsx scripts/parity/seed.ts",
+    "parity:config": "tsx scripts/parity/config-keys.ts",
+    "parity:locales": "tsx scripts/parity/locale-keys.ts",
+    "import:ospos": "tsx scripts/import-ospos-mysql.ts",
+    "export:ospos": "tsx scripts/export-ospos-mysql.ts",
+    "port:locales": "tsx scripts/port-locales.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
@@ -24,6 +34,7 @@
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.11.1",
     "bwip-js": "^4.11.1",
+    "decimal.js": "^10.6.0",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.22.0",
     "mysql2": "^3.22.5",
@@ -52,5 +63,15 @@
     "tsx": "^4.22.4",
     "typescript": "^5",
     "vitest": "^4.1.9"
+  },
+  "allowScripts": {
+    "esbuild@0.18.20": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.1": true,
+    "@parcel/watcher@2.5.6": true,
+    "better-sqlite3@12.11.1": true,
+    "@swc/core@1.15.43": true,
+    "sharp@0.34.5": true,
+    "unrs-resolver@1.12.2": true
   }
 }

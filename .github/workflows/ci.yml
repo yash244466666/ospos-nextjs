@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+        env:
+          ALLOWED_HOSTNAMES: localhost
+
+  parity-sqlite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: npm run db:seed
+      - run: npm run parity
+        env:
+          DB_DRIVER: sqlite
+          DATABASE_URL: sqlite.db
+
+  parity-mysql:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: ospos
+          MYSQL_USER: ospos
+          MYSQL_PASSWORD: ospos
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uospos -pospos"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+        command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_520_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+        env:
+          DB_DRIVER: mysql
+          DATABASE_URL: mysql://ospos:ospos@127.0.0.1:3306/ospos
+      - run: npm run db:seed
+        env:
+          DB_DRIVER: mysql
+          DATABASE_URL: mysql://ospos:ospos@127.0.0.1:3306/ospos
+      - run: npm run parity
+        env:
+          DB_DRIVER: mysql
+          DATABASE_URL: mysql://ospos:ospos@127.0.0.1:3306/ospos
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e

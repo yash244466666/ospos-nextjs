@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local databases and runtime artifacts
+sqlite.db*
+ospos.db*
+backups/
+e2e-results/
+e2e/.auth/
+uploads/

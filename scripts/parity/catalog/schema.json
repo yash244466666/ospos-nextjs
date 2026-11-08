@@ -1,0 +1,2290 @@
+{
+ "ospos_app_config": {
+  "columns": [
+   {
+    "name": "key",
+    "type": "varchar(50)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "value",
+    "type": "varchar(500)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "key"
+  ]
+ },
+ "ospos_attribute_definitions": {
+  "columns": [
+   {
+    "name": "definition_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "definition_name",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "definition_type",
+    "type": "varchar(45)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "definition_unit",
+    "type": "varchar(16)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "definition_flags",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "definition_fk",
+    "type": "int(10)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "definition_id"
+  ]
+ },
+ "ospos_attribute_links": {
+  "columns": [
+   {
+    "name": "attribute_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "definition_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "item_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "sale_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "receiving_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "generated_unique_column",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": null,
+    "generated": true
+   }
+  ],
+  "primaryKey": []
+ },
+ "ospos_attribute_values": {
+  "columns": [
+   {
+    "name": "attribute_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "attribute_value",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "attribute_date",
+    "type": "date",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "attribute_decimal",
+    "type": "decimal(7,3)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "attribute_id"
+  ]
+ },
+ "ospos_cash_up": {
+  "columns": [
+   {
+    "name": "cashup_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "open_date",
+    "type": "timestamp",
+    "nullable": true,
+    "default": "CURRENT_TIMESTAMP",
+    "generated": false
+   },
+   {
+    "name": "close_date",
+    "type": "timestamp",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "open_amount_cash",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "transfer_amount_cash",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "note",
+    "type": "tinyint",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "closed_amount_cash",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "closed_amount_card",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "closed_amount_check",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "closed_amount_total",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "description",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "open_employee_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "close_employee_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "closed_amount_due",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "cashup_id"
+  ]
+ },
+ "ospos_customers": {
+  "columns": [
+   {
+    "name": "person_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "company_name",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "account_number",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "taxable",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "1",
+    "generated": false
+   },
+   {
+    "name": "tax_id",
+    "type": "varchar(32)",
+    "nullable": false,
+    "default": "''",
+    "generated": false
+   },
+   {
+    "name": "sales_tax_code_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "package_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "points",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "discount",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "discount_type",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "date",
+    "type": "timestamp",
+    "nullable": false,
+    "default": "CURRENT_TIMESTAMP",
+    "generated": false
+   },
+   {
+    "name": "employee_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "consent",
+    "type": "tinyint",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "person_id"
+  ]
+ },
+ "ospos_customers_packages": {
+  "columns": [
+   {
+    "name": "package_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "package_name",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "points_percent",
+    "type": "float",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "package_id"
+  ]
+ },
+ "ospos_customers_points": {
+  "columns": [
+   {
+    "name": "id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "person_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "package_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "sale_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "points_earned",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "id"
+  ]
+ },
+ "ospos_dinner_tables": {
+  "columns": [
+   {
+    "name": "dinner_table_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "name",
+    "type": "varchar(30)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "status",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "dinner_table_id"
+  ]
+ },
+ "ospos_employees": {
+  "columns": [
+   {
+    "name": "username",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "password",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "person_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "hash_version",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "2",
+    "generated": false
+   },
+   {
+    "name": "language",
+    "type": "varchar(48)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "language_code",
+    "type": "varchar(8)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "person_id"
+  ]
+ },
+ "ospos_expense_categories": {
+  "columns": [
+   {
+    "name": "expense_category_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "category_name",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "category_description",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "expense_category_id"
+  ]
+ },
+ "ospos_expenses": {
+  "columns": [
+   {
+    "name": "expense_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "date",
+    "type": "timestamp",
+    "nullable": true,
+    "default": "CURRENT_TIMESTAMP",
+    "generated": false
+   },
+   {
+    "name": "amount",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "payment_type",
+    "type": "varchar(40)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "expense_category_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "description",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "employee_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "supplier_tax_code",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "tax_amount",
+    "type": "decimal(15,2)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "supplier_id",
+    "type": "int(10)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "expense_id"
+  ]
+ },
+ "ospos_giftcards": {
+  "columns": [
+   {
+    "name": "record_time",
+    "type": "timestamp",
+    "nullable": false,
+    "default": "CURRENT_TIMESTAMP",
+    "generated": false
+   },
+   {
+    "name": "giftcard_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "giftcard_number",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "value",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "person_id",
+    "type": "int(10)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "giftcard_id"
+  ]
+ },
+ "ospos_grants": {
+  "columns": [
+   {
+    "name": "permission_id",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "person_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "menu_group",
+    "type": "varchar(32)",
+    "nullable": true,
+    "default": "'home'",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "permission_id",
+   "person_id"
+  ]
+ },
+ "ospos_inventory": {
+  "columns": [
+   {
+    "name": "trans_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "trans_items",
+    "type": "int(11)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "trans_user",
+    "type": "int(11)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "trans_date",
+    "type": "timestamp",
+    "nullable": false,
+    "default": "CURRENT_TIMESTAMP",
+    "generated": false
+   },
+   {
+    "name": "trans_comment",
+    "type": "text",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "trans_location",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "trans_inventory",
+    "type": "decimal(15,3)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "trans_id"
+  ]
+ },
+ "ospos_item_kit_items": {
+  "columns": [
+   {
+    "name": "item_kit_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "item_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "quantity",
+    "type": "decimal(15,3)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "kit_sequence",
+    "type": "int(3)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "item_kit_id",
+   "item_id",
+   "quantity"
+  ]
+ },
+ "ospos_item_kits": {
+  "columns": [
+   {
+    "name": "item_kit_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "item_kit_number",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "name",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "description",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "item_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "kit_discount",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "kit_discount_type",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "price_option",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "print_option",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "item_kit_id"
+  ]
+ },
+ "ospos_item_quantities": {
+  "columns": [
+   {
+    "name": "item_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "location_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "quantity",
+    "type": "decimal(15,3)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "item_id",
+   "location_id"
+  ]
+ },
+ "ospos_items": {
+  "columns": [
+   {
+    "name": "name",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "category",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "supplier_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "item_number",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "description",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "cost_price",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "unit_price",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "reorder_level",
+    "type": "decimal(15,3)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "receiving_quantity",
+    "type": "decimal(15,3)",
+    "nullable": false,
+    "default": "1",
+    "generated": false
+   },
+   {
+    "name": "item_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "pic_filename",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "allow_alt_description",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "is_serialized",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "stock_type",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "item_type",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "tax_category_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "qty_per_pack",
+    "type": "decimal(15,3)",
+    "nullable": false,
+    "default": "1",
+    "generated": false
+   },
+   {
+    "name": "pack_name",
+    "type": "varchar(8)",
+    "nullable": true,
+    "default": "'Each'",
+    "generated": false
+   },
+   {
+    "name": "low_sell_item_id",
+    "type": "int(10)",
+    "nullable": true,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "hsn_code",
+    "type": "varchar(32)",
+    "nullable": false,
+    "default": "''",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "item_id"
+  ]
+ },
+ "ospos_items_taxes": {
+  "columns": [
+   {
+    "name": "item_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "name",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "percent",
+    "type": "decimal(15,3)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "item_id",
+   "name",
+   "percent"
+  ]
+ },
+ "ospos_migrations": {
+  "columns": [
+   {
+    "name": "id",
+    "type": "bigint(20)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "version",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "class",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "group",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "namespace",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "time",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "batch",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "id"
+  ]
+ },
+ "ospos_modules": {
+  "columns": [
+   {
+    "name": "name_lang_key",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "desc_lang_key",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "sort",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "module_id",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "module_id"
+  ]
+ },
+ "ospos_people": {
+  "columns": [
+   {
+    "name": "first_name",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "last_name",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "gender",
+    "type": "int(1)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "phone_number",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "email",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "address_1",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "address_2",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "city",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "state",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "zip",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "country",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "comments",
+    "type": "text",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "person_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "person_id"
+  ]
+ },
+ "ospos_permissions": {
+  "columns": [
+   {
+    "name": "permission_id",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "module_id",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "location_id",
+    "type": "int(10)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "permission_id"
+  ]
+ },
+ "ospos_receivings": {
+  "columns": [
+   {
+    "name": "receiving_time",
+    "type": "timestamp",
+    "nullable": false,
+    "default": "CURRENT_TIMESTAMP",
+    "generated": false
+   },
+   {
+    "name": "supplier_id",
+    "type": "int(10)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "employee_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "comment",
+    "type": "text",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "receiving_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "payment_type",
+    "type": "varchar(20)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "reference",
+    "type": "varchar(32)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "receiving_id"
+  ]
+ },
+ "ospos_receivings_items": {
+  "columns": [
+   {
+    "name": "receiving_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "item_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "description",
+    "type": "varchar(30)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "serialnumber",
+    "type": "varchar(30)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "line",
+    "type": "int(3)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "quantity_purchased",
+    "type": "decimal(15,3)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "item_cost_price",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "item_unit_price",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "discount",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "discount_type",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "item_location",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "receiving_quantity",
+    "type": "decimal(15,3)",
+    "nullable": false,
+    "default": "1",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "receiving_id",
+   "item_id",
+   "line"
+  ]
+ },
+ "ospos_sales": {
+  "columns": [
+   {
+    "name": "sale_time",
+    "type": "timestamp",
+    "nullable": false,
+    "default": "CURRENT_TIMESTAMP",
+    "generated": false
+   },
+   {
+    "name": "customer_id",
+    "type": "int(10)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "employee_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "comment",
+    "type": "text",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "invoice_number",
+    "type": "varchar(32)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "dinner_table_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "sale_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "quote_number",
+    "type": "varchar(32)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "sale_status",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "work_order_number",
+    "type": "varchar(32)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "sale_type",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "sale_id"
+  ]
+ },
+ "ospos_sales_items": {
+  "columns": [
+   {
+    "name": "sale_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "item_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "description",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "serialnumber",
+    "type": "varchar(30)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "line",
+    "type": "int(3)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "quantity_purchased",
+    "type": "decimal(15,3)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "item_cost_price",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "item_unit_price",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "discount",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "discount_type",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "item_location",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "print_option",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "sale_id",
+   "item_id",
+   "line"
+  ]
+ },
+ "ospos_sales_items_taxes": {
+  "columns": [
+   {
+    "name": "sale_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "item_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "line",
+    "type": "int(3)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "name",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "percent",
+    "type": "decimal(15,4)",
+    "nullable": false,
+    "default": "0.0000",
+    "generated": false
+   },
+   {
+    "name": "tax_type",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "rounding_code",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "cascade_sequence",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "item_tax_amount",
+    "type": "decimal(15,4)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "sales_tax_code_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "jurisdiction_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "tax_category_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "sale_id",
+   "item_id",
+   "line",
+   "name",
+   "percent"
+  ]
+ },
+ "ospos_sales_payments": {
+  "columns": [
+   {
+    "name": "payment_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "sale_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "payment_type",
+    "type": "varchar(40)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "payment_amount",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "cash_refund",
+    "type": "decimal(15,2)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "cash_adjustment",
+    "type": "tinyint",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "employee_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "payment_time",
+    "type": "timestamp",
+    "nullable": false,
+    "default": "CURRENT_TIMESTAMP",
+    "generated": false
+   },
+   {
+    "name": "reference_code",
+    "type": "varchar(40)",
+    "nullable": false,
+    "default": "''",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "payment_id"
+  ]
+ },
+ "ospos_sales_reward_points": {
+  "columns": [
+   {
+    "name": "id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "sale_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "earned",
+    "type": "float",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "used",
+    "type": "float",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "id"
+  ]
+ },
+ "ospos_sales_taxes": {
+  "columns": [
+   {
+    "name": "sales_taxes_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "sale_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "jurisdiction_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "tax_category_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "tax_type",
+    "type": "smallint(2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "tax_group",
+    "type": "varchar(32)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "sale_tax_basis",
+    "type": "decimal(15,4)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "sale_tax_amount",
+    "type": "decimal(15,4)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "print_sequence",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "name",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "tax_rate",
+    "type": "decimal(15,4)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "sales_tax_code_id",
+    "type": "int(11)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "rounding_code",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "sales_taxes_id"
+  ]
+ },
+ "ospos_sessions": {
+  "columns": [
+   {
+    "name": "id",
+    "type": "varchar(128)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "ip_address",
+    "type": "varchar(45)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "timestamp",
+    "type": "timestamp",
+    "nullable": false,
+    "default": "CURRENT_TIMESTAMP",
+    "generated": false
+   },
+   {
+    "name": "data",
+    "type": "blob",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "id",
+   "ip_address"
+  ]
+ },
+ "ospos_stock_locations": {
+  "columns": [
+   {
+    "name": "location_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "location_name",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "is_default",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "sort_order",
+    "type": "tinyint",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "location_id"
+  ]
+ },
+ "ospos_suppliers": {
+  "columns": [
+   {
+    "name": "person_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "company_name",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "agency_name",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "account_number",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "tax_id",
+    "type": "varchar(32)",
+    "nullable": false,
+    "default": "''",
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "category",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "person_id"
+  ]
+ },
+ "ospos_tax_categories": {
+  "columns": [
+   {
+    "name": "tax_category_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "tax_category",
+    "type": "varchar(32)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "tax_group_sequence",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "tax_category_id"
+  ]
+ },
+ "ospos_tax_codes": {
+  "columns": [
+   {
+    "name": "tax_code_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "tax_code",
+    "type": "varchar(32)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "tax_code_name",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": "''",
+    "generated": false
+   },
+   {
+    "name": "city",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": "''",
+    "generated": false
+   },
+   {
+    "name": "state",
+    "type": "varchar(255)",
+    "nullable": false,
+    "default": "''",
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "tax_code_id"
+  ]
+ },
+ "ospos_tax_jurisdictions": {
+  "columns": [
+   {
+    "name": "jurisdiction_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "jurisdiction_name",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "tax_group",
+    "type": "varchar(32)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "tax_type",
+    "type": "smallint(2)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "reporting_authority",
+    "type": "varchar(255)",
+    "nullable": true,
+    "default": "NULL",
+    "generated": false
+   },
+   {
+    "name": "tax_group_sequence",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "cascade_sequence",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   },
+   {
+    "name": "deleted",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "jurisdiction_id"
+  ]
+ },
+ "ospos_tax_rates": {
+  "columns": [
+   {
+    "name": "tax_rate_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "rate_tax_code_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "rate_tax_category_id",
+    "type": "int(10)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "rate_jurisdiction_id",
+    "type": "int(11)",
+    "nullable": false,
+    "default": null,
+    "generated": false
+   },
+   {
+    "name": "tax_rate",
+    "type": "decimal(15,4)",
+    "nullable": false,
+    "default": "0.0000",
+    "generated": false
+   },
+   {
+    "name": "tax_rounding_code",
+    "type": "tinyint(1)",
+    "nullable": false,
+    "default": "0",
+    "generated": false
+   }
+  ],
+  "primaryKey": [
+   "tax_rate_id"
+  ]
+ }
+}
