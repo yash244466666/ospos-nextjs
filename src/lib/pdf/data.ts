@@ -11,7 +11,7 @@ import {
 import { dateFormat, getConfig, getConfigBool, getConfigNumber, loadConfig, timeFormat } from "@/lib/config";
 import { getItemDiscount, getItemTotal } from "@/lib/sale/types";
 import { formatDb } from "@/lib/datetime";
-import { bcMul, bcSub, bcSum, dec } from "@/lib/money";
+import { bcMul, bcSub, bcSum, dec, toDbDecimal } from "@/lib/money";
 import type { ReceiptData } from "./receipt";
 
 export interface DocumentFlags {
@@ -39,7 +39,10 @@ export interface DocumentLine {
   quantity: string;
   total: string;
   discountedTotal: string;
+  /** Raw cart discount: percent for PERCENT lines, per-unit amount for FIXED. */
   discount: string;
+  /** Computed discount amount for the line. */
+  discountAmount: string;
   discountType: number;
   taxedFlag: string;
   printOption: number;
@@ -229,7 +232,8 @@ export async function buildSaleDocumentData(saleId: number): Promise<SaleDocumen
           getItemTotal(item.quantityPurchased, item.itemUnitPrice, item.discount, item.discountType, true),
           totalsDecimals,
         ),
-        discount: moneyString(
+        discount: toDbDecimal(item.discount, 2),
+        discountAmount: moneyString(
           getItemDiscount(item.quantityPurchased, item.itemUnitPrice, item.discount, item.discountType),
           totalsDecimals,
         ),
@@ -295,7 +299,7 @@ export async function buildReceiptData(saleId: number): Promise<ReceiptData | nu
       serialnumber: line.serialnumber,
       quantity: Number(line.quantity),
       unitPrice: Number(line.price),
-      discount: Number(line.discount),
+      discount: Number(line.discountAmount),
       total: Number(line.discountedTotal),
       taxedFlag: line.taxedFlag,
     })),

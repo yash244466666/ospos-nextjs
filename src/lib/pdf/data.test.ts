@@ -80,7 +80,8 @@ describe("SaleDocument data", () => {
       quantity: "2.000",
       total: "20.0000",
       discountedTotal: "18.0000",
-      discount: "2.0000",
+      discount: "10.00",
+      discountAmount: "2.0000",
       taxedFlag: "T",
       printOption: 0,
     });

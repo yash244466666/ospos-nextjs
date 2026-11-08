@@ -126,7 +126,7 @@ export async function SaleDocument({
             </tr>
           ))}
           {printableLines.map((line) =>
-            Number(line.discount) > 0 ? (
+            Number(line.discountAmount) > 0 ? (
               <tr key={`discount-${line.line}`} className={rowClassName}>
                 <td className="p-2 text-slate-600" colSpan={short ? 2 : 3}>
                   {line.discountType === DISCOUNT_TYPE.FIXED
