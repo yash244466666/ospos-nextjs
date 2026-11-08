@@ -1097,6 +1097,7 @@ function detailedItemSales(): ReportDef {
         const total = included ? base : base + tax;
         return {
         sale_time: displayDateTime(row.sale_time),
+        sale_timeRaw: String(row.sale_time ?? ""),
         sale_id: Number(row.sale_id ?? 0),
         customer_name: row.customer_name ?? "",
         item_name: row.item_name ?? "",
@@ -1167,12 +1168,12 @@ function detailedSales(): ReportDef {
       }
       const rows = await reportQuery<Record<string, unknown>>(
         `SELECT sales.sale_id,
-                MAX(CASE WHEN sales.sale_type = 0 AND sales.sale_status = 0 THEN 'POS'
-                         WHEN sales.sale_type = 1 AND sales.sale_status = 0 THEN 'INV'
-                         WHEN sales.sale_type = 2 AND sales.sale_status = 1 THEN 'W/O'
-                         WHEN sales.sale_type = 3 AND sales.sale_status = 1 THEN 'Q'
-                         WHEN sales.sale_type = 4 AND sales.sale_status = 0 THEN 'RET'
-                         WHEN sales.sale_status = 2 THEN 'CNL' ELSE '' END) AS type_code,
+                MAX(CASE WHEN sales.sale_type = 0 AND sales.sale_status = 0 THEN '${lang("Reports.code_pos")}'
+                         WHEN sales.sale_type = 1 AND sales.sale_status = 0 THEN '${lang("Reports.code_invoice")}'
+                         WHEN sales.sale_type = 2 AND sales.sale_status = 1 THEN '${lang("Reports.code_work_order")}'
+                         WHEN sales.sale_type = 3 AND sales.sale_status = 1 THEN '${lang("Reports.code_quote")}'
+                         WHEN sales.sale_type = 4 AND sales.sale_status = 0 THEN '${lang("Reports.code_return")}'
+                         WHEN sales.sale_status = 2 THEN '${lang("Reports.code_canceled")}' ELSE '' END) AS type_code,
                 MAX(sales.sale_time) AS sale_time,
                 SUM(si.quantity_purchased) AS quantity_purchased,
                 MAX(${concatExpr("employee_p.first_name", "' '", "employee_p.last_name")}) AS employee_name,
@@ -1192,6 +1193,7 @@ function detailedSales(): ReportDef {
         sale_id: Number(row.sale_id ?? 0),
         type_code: row.type_code ?? "",
         sale_time: displayDateTime(row.sale_time),
+        sale_timeRaw: String(row.sale_time ?? ""),
         quantity: quantity(row.quantity_purchased),
         employee_name: row.employee_name ?? "",
         customer_name: row.customer_name ?? "",
@@ -1255,6 +1257,7 @@ function detailedReceivings(): ReportDef {
       return rows.map((row) => ({
         receiving_id: Number(row.receiving_id ?? 0),
         receiving_time: displayDateTime(row.receiving_time),
+        receiving_timeRaw: String(row.receiving_time ?? ""),
         quantity: quantity(row.quantity_purchased),
         employee_name: row.employee_name ?? "",
         supplier_name: row.supplier_name ?? "",
@@ -1287,12 +1290,12 @@ async function specificSalesReport(
   const clauses = [date.clause, saleTypePredicate(filters.saleType ?? "complete"), whereExtra];
   const rows = await reportQuery<Record<string, unknown>>(
     `SELECT sales.sale_id,
-            MAX(CASE WHEN sales.sale_type = 0 AND sales.sale_status = 0 THEN 'POS'
-                     WHEN sales.sale_type = 1 AND sales.sale_status = 0 THEN 'INV'
-                     WHEN sales.sale_type = 2 AND sales.sale_status = 1 THEN 'W/O'
-                     WHEN sales.sale_type = 3 AND sales.sale_status = 1 THEN 'Q'
-                     WHEN sales.sale_type = 4 AND sales.sale_status = 0 THEN 'RET'
-                     WHEN sales.sale_status = 2 THEN 'CNL' ELSE '' END) AS type_code,
+            MAX(CASE WHEN sales.sale_type = 0 AND sales.sale_status = 0 THEN '${lang("Reports.code_pos")}'
+                     WHEN sales.sale_type = 1 AND sales.sale_status = 0 THEN '${lang("Reports.code_invoice")}'
+                     WHEN sales.sale_type = 2 AND sales.sale_status = 1 THEN '${lang("Reports.code_work_order")}'
+                     WHEN sales.sale_type = 3 AND sales.sale_status = 1 THEN '${lang("Reports.code_quote")}'
+                     WHEN sales.sale_type = 4 AND sales.sale_status = 0 THEN '${lang("Reports.code_return")}'
+                     WHEN sales.sale_status = 2 THEN '${lang("Reports.code_canceled")}' ELSE '' END) AS type_code,
             MAX(sales.sale_time) AS sale_time,
             SUM(si.quantity_purchased) AS quantity_purchased,
             MAX(${concatExpr("employee_p.first_name", "' '", "employee_p.last_name")}) AS employee_name,

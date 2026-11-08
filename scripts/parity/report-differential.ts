@@ -31,6 +31,9 @@ const INPUTS = {
   sale_type: "complete",
   location_id: "all",
   discount_type: "0",
+  receiving_type: "all",
+  item_count: "all",
+  definition_ids: [] as number[],
 };
 
 const FILTERS = {
@@ -67,6 +70,10 @@ interface ReportSpec {
   class: string;
   fields: Field[];
   summary?: Field[];
+  /** Detailed reports build MEMORY temp tables in `create()` first. */
+  create?: boolean;
+  /** Inventory_summary's getSummaryData() takes the data rows, not filters. */
+  summaryFromData?: boolean;
 }
 
 const SUMMARY_TOTALS: Field[] = [
@@ -188,6 +195,95 @@ const REPORTS: ReportSpec[] = [
     ],
     summary: SUMMARY_TOTALS,
   },
+  {
+    key: "detailed_sales",
+    class: "Detailed_sales",
+    create: true,
+    fields: [
+      N("sale_id"),
+      S("type_code"),
+      { oracle: "sale_time", target: "sale_timeRaw", kind: "str" },
+      { oracle: "items_purchased", target: "quantity", kind: "num" },
+      S("employee_name"),
+      S("customer_name"),
+      S("payment_type"),
+      S("comment"),
+      ...TOTALS,
+    ],
+    summary: SUMMARY_TOTALS,
+  },
+  {
+    key: "detailed_item_sales",
+    class: "Detailed_item_sales",
+    create: true,
+    fields: [
+      { oracle: "sale_time", target: "sale_timeRaw", kind: "str" },
+      N("sale_id"),
+      S("customer_name"),
+      S("item_name"),
+      S("category"),
+      S("item_number"),
+      { oracle: "quantity_purchased", target: "quantity", kind: "num" },
+      { oracle: "item_unit_price", target: "unit_price", kind: "num" },
+      { oracle: "discount", target: "discount", kind: "num" },
+      S("employee_name"),
+      S("payment_type"),
+      S("comment"),
+      ...TOTALS,
+    ],
+    summary: [N("total_quantity"), ...SUMMARY_TOTALS],
+  },
+  {
+    key: "detailed_receivings",
+    class: "Detailed_receivings",
+    create: true,
+    fields: [
+      N("receiving_id"),
+      { oracle: "receiving_time", target: "receiving_timeRaw", kind: "str" },
+      { oracle: "items_purchased", target: "quantity", kind: "num" },
+      S("employee_name"),
+      S("supplier_name"),
+      { oracle: "total", target: "totalRaw", kind: "num" },
+      S("payment_type"),
+      S("comment"),
+      S("reference"),
+    ],
+    summary: [N("total")],
+  },
+  {
+    key: "inventory_low",
+    class: "Inventory_low",
+    fields: [
+      S("name", "item_name"),
+      S("item_number"),
+      { oracle: "quantity", target: "quantity", kind: "num" },
+      { oracle: "reorder_level", target: "reorder_level", kind: "num" },
+      S("location_name"),
+    ],
+  },
+  {
+    key: "inventory_summary",
+    class: "Inventory_summary",
+    summaryFromData: true,
+    fields: [
+      S("name", "item_name"),
+      S("item_number"),
+      S("category"),
+      { oracle: "quantity", target: "quantity", kind: "num" },
+      { oracle: "low_sell_quantity", target: "low_sell_quantity", kind: "num" },
+      { oracle: "reorder_level", target: "reorder_level", kind: "num" },
+      S("location_name"),
+      { oracle: "cost_price", target: "cost_price", kind: "num" },
+      { oracle: "unit_price", target: "unit_price", kind: "num" },
+      { oracle: "sub_total_value", target: "subtotalRaw", kind: "num" },
+    ],
+    summary: [
+      N("total_inventory_value"),
+      N("total_quantity"),
+      N("total_low_sell_quantity"),
+      N("total_retail"),
+    ],
+  },
 ];
 
 function toNumber(value: unknown): number | null {
@@ -261,7 +357,15 @@ function probeOnce(spec: ReportSpec): Record<string, unknown> {
       CONTAINER,
       "php",
       "/tmp/report-probe.php",
-      JSON.stringify([{ key: spec.key, class: spec.class, inputs: INPUTS }]),
+      JSON.stringify([
+        {
+          key: spec.key,
+          class: spec.class,
+          inputs: INPUTS,
+          create: spec.create ?? false,
+          summaryFromData: spec.summaryFromData ?? false,
+        },
+      ]),
     ],
     { encoding: "utf8" },
   );

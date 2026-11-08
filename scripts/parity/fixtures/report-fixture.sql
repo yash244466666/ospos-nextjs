@@ -35,7 +35,7 @@ INSERT INTO ospos_suppliers (person_id, company_name, agency_name, account_numbe
 
 INSERT INTO ospos_items (item_id, name, category, supplier_id, item_number, description, cost_price, unit_price, reorder_level, receiving_quantity, allow_alt_description, is_serialized, deleted, stock_type, item_type, tax_category_id, qty_per_pack, pack_name, hsn_code, low_sell_item_id) VALUES
   (1, 'Widget', 'Tools', NULL, 'W-1', 'A widget', 4.00, 10.00, 1.000, 1.000, 0, 0, 0, 0, 0, NULL, 1.000, NULL, '', 1),
-  (2, 'Gadget', 'Widgets', NULL, 'G-1', 'A gadget', 5.00, 20.00, 1.000, 1.000, 0, 0, 0, 0, 0, NULL, 1.000, NULL, '', 2);
+  (2, 'Gadget', 'Widgets', NULL, 'G-1', 'A gadget', 5.00, 20.00, 60.000, 1.000, 0, 0, 0, 0, 0, NULL, 1.000, NULL, '', 2);
 
 INSERT INTO ospos_item_quantities (item_id, location_id, quantity) VALUES
   (1, 1, 100.000),

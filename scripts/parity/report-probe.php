@@ -22,14 +22,27 @@ foreach ($spec as $item) {
     try {
         $model = new $class();
         $db = \Config\Database::connect();
-        // Summary_report creates MEMORY temp tables with IF NOT EXISTS, so a
-        // second report on the same connection would reuse stale rows.
-        $db->query('DROP TEMPORARY TABLE IF EXISTS ' . $db->prefixTable('sales_items_taxes_temp'));
-        $db->query('DROP TEMPORARY TABLE IF EXISTS ' . $db->prefixTable('sales_report_payments_temp'));
+        // Summary_report/detailed reports create MEMORY temp tables with IF NOT
+        // EXISTS, so a second report on the same connection would reuse stale
+        // rows.
+        foreach (['sales_items_taxes_temp', 'sales_report_payments_temp', 'sales_items_temp', 'receivings_items_temp'] as $tempTable) {
+            $db->query('DROP TEMPORARY TABLE IF EXISTS ' . $db->prefixTable($tempTable));
+        }
+        if (!empty($item['create']) && method_exists($model, 'create')) {
+            $model->create($inputs);
+        }
         $data = $model->getData($inputs);
-        $summary = $model->getSummaryData($inputs);
+        $details = null;
+        if (is_array($data) && isset($data['summary']) && isset($data['details'])) {
+            $details = $data['details'];
+            $data = $data['summary'];
+        }
+        $summary = !empty($item['summaryFromData'])
+            ? $model->getSummaryData($data)
+            : $model->getSummaryData($inputs);
         $result[$key] = [
             'data' => $data,
+            'details' => $details,
             'summary' => $summary,
             'columns' => $model->getDataColumns(),
         ];
