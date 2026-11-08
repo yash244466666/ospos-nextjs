@@ -26,7 +26,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev",
+    command: "npm run e2e:prepare && npm run dev",
     url: baseURL,
     timeout: 120000,
     reuseExistingServer: false,
@@ -36,7 +36,9 @@ export default defineConfig({
       NODE_ENV: "test",
       AUTH_SECRET: "e2e-parity-secret",
       ALLOWED_HOSTNAMES: "localhost,127.0.0.1",
+      // Upstream's LoginTest clears the throttler between tests; every e2e
+      // test logs in as the same user from the same IP.
+      THROTTLE_CAPACITY: "0",
     },
   },
-  globalSetup: "./e2e/global-setup.ts",
 });

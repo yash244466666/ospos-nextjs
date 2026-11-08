@@ -1,10 +1,14 @@
-import NextAuth, { type NextAuthConfig } from "next-auth";
+import NextAuth, { CredentialsSignin, type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { verifyPassword } from "./password";
 import { getMenuGroup } from "./rbac";
 import { createAppSession, requestIp } from "@/lib/session";
 import { loadConfig } from "@/lib/config";
-import { isLoginBlocked, recordLoginFailure, recordLoginSuccess } from "./throttle";
+import { checkThrottle } from "./throttle";
+
+class ThrottledSignin extends CredentialsSignin {
+  code = "throttled";
+}
 
 const allowedHostnamesRaw = process.env.ALLOWED_HOSTNAMES;
 if (
@@ -30,17 +34,17 @@ export const config = {
       },
       async authorize(credentials, request) {
         await loadConfig();
-        const username = credentials?.username as string | undefined;
-        const password = credentials?.password as string | undefined;
-        if (!username || !password) return null;
+        const rawUsername = credentials?.username;
+        const rawPassword = credentials?.password;
+        const username = typeof rawUsername === "string" ? rawUsername : "";
+        const password = typeof rawPassword === "string" ? rawPassword : "";
         const ip = requestIp(request);
-        if (isLoginBlocked(ip, username)) return null;
+        // Upstream Throttle counts every POST attempt (successful or not)
+        // before validation; capacity 0 disables it.
+        if (!checkThrottle(ip, username)) throw new ThrottledSignin();
+        if (!username || !password) return null;
         const user = await verifyPassword(username, password);
-        if (!user) {
-          recordLoginFailure(ip, username);
-          return null;
-        }
-        recordLoginSuccess(ip, username);
+        if (!user) return null;
         // CI4 regenerates the session id on login; a fresh app session row has
         // no cart state, which is the observable effect of that regeneration.
         const appSessionId = await createAppSession(user.personId, ip);

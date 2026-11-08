@@ -17,7 +17,7 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 | P9 Config & shell | `port/p9-config` | PARTIAL | 138-key tab UI, label resolution, secret masking, batch saves | child managers/visibility/side-effect refinement pending |
 | P10 Documents | `port/p10-documents` | PARTIAL | line names/discounts/taxes/subtotal and net payments in the data model | template flag matrix and email HTML parity pending |
 | P11 i18n | `port/p11-i18n` | PARTIAL | 46 locales × 24 files; 72,680 keys parity PASS; shell labels localized | bn pack and hard-coded UI string sweep pending |
-| P12 Hardening | `port/p12-hardening` | PARTIAL | no-stubs + sql-safety PASS | host/CSRF/throttle audits pending |
+| P12 Hardening | `port/p12-hardening` | PARTIAL | no-stubs + sql-safety PASS; throttle rewritten to the upstream filter contract (11 unit tests); `/api/migrate` now re-checks credentials on an existing DB and takes a migration lock | CSRF/session audit pending |
 | P13 Differential closure | `port/p13-differential` | PARTIAL | Oracle DB differential: config 138 keys PASS, seed (18/36/35/5/2/1) PASS, schema 39 tables/286 cols PASS; MySQL integration suite 29/29 on config/sequence, sale, items, receiving, reports, all ancillary repositories | scenario matrix and row/output diffs pending |
 
 ## Decisions log
@@ -42,6 +42,9 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 | 2026-11-08 | MySQL sequence acquisition uses a `SELECT … FOR UPDATE` transaction, not `UPDATE … RETURNING` | Plan gotcha #3 assumes MySQL supports `RETURNING`; MySQL 8 does not (only MariaDB). Row locking gives the same observable atomic increment (DEV-01) |
 | 2026-11-08 | Cross-dialect upsert/ignore/insert helpers live in `src/lib/db/insert.ts` | Drizzle exposes `onConflictDoUpdate`/`onConflictDoNothing` for SQLite and `onDuplicateKeyUpdate` for MySQL; three SQLite-only calls failed at runtime under `DB_DRIVER=mysql` |
 | 2026-11-08 | Raw inventory/cleanup writes go through `affectedRows()` | `tx.run()` exists only on the better-sqlite3 handle; Drizzle's MySQL handle requires `execute()` |
+| 2026-11-08 | Throttle falls back to `AUTH_SECRET` when `THROTTLE_KEY` is unset | Upstream provisions `throttle.key` into a writable `.env`; the target has no writable `.env` contract. Capacity/window/env semantics match `App\Filters\Throttle` |
+| 2026-11-08 | E2E seeds the database in the Playwright web-server command, not `globalSetup` | Playwright starts the web server before `globalSetup`; unlinking the SQLite file raced the open handle and left the server on an empty inode |
+| 2026-11-08 | `/api/migrate` requires credentials when employees exist and uses a `.migration.lock` file | Mirrors `Login::migrate`'s `login_check` gate and `MY_Migration::runLocked()`; CSRF exemption matches upstream `Filters.php` |
 
 ## Open follow-ups
 

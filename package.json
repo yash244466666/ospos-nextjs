@@ -26,7 +26,8 @@
     "parity:locales": "tsx scripts/parity/locale-keys.ts",
     "import:ospos": "tsx scripts/import-ospos-mysql.ts",
     "export:ospos": "tsx scripts/export-ospos-mysql.ts",
-    "port:locales": "tsx scripts/port-locales.ts"
+    "port:locales": "tsx scripts/port-locales.ts",
+    "e2e:prepare": "tsx e2e/prepare-db.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",

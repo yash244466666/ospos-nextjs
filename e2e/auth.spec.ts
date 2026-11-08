@@ -15,7 +15,7 @@ test.describe("Authentication", () => {
     await page.getByTestId("login-username").fill("admin");
     await page.getByTestId("login-password").fill("wrong");
     await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("login-error")).toContainText("Invalid username or password");
+    await expect(page.getByTestId("login-error")).toContainText("Invalid username and/or password");
     await expect(page).toHaveURL(/\/login/);
   });
 
