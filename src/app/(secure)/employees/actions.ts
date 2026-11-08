@@ -17,7 +17,7 @@ export async function saveEmployeeAction(formData: FormData) {
   const personIdRaw = formData.get("personId");
   const personId = personIdRaw ? parseInt(personIdRaw as string, 10) : null;
 
-  if (personId === 1 && !isAdmin(currentPersonId as number)) {
+  if (personId === 1 && !(await isAdmin(currentPersonId as number))) {
     throw new Error("Only admin can edit the superadmin");
   }
 
@@ -25,14 +25,14 @@ export async function saveEmployeeAction(formData: FormData) {
   if (!firstName) throw new Error("First name required");
   const username = (formData.get("username") as string)?.trim();
   if (!username) throw new Error("Username required");
-  if (usernameExists(username, personId)) throw new Error("Username exists");
+  if (await usernameExists(username, personId)) throw new Error("Username exists");
 
   const password = (formData.get("password") as string) || undefined;
   if (!personId && !password) throw new Error("Password required for new employee");
   const hashed = password ? await hash(password, 10) : undefined;
 
   const grantsList: { permissionId: string; menuGroup?: string | null }[] = [];
-  const allPerms = listAllPermissions();
+  const allPerms = await listAllPermissions();
   for (const p of allPerms) {
     const v = formData.get(`grant_${p.permissionId}`);
     if (v === "on") {
@@ -40,7 +40,7 @@ export async function saveEmployeeAction(formData: FormData) {
     }
   }
 
-  const id = saveEmployee(personId, {
+  await saveEmployee(personId, {
     firstName,
     lastName: (formData.get("lastName") as string)?.trim() || null,
     email: (formData.get("email") as string)?.trim().toLowerCase() || null,
@@ -67,8 +67,8 @@ export async function deleteEmployeeAction(personId: number) {
   const session = await requirePermission("employees");
   if (personId === 1) throw new Error("Cannot delete superadmin");
   if (personId === (session!.user.personId as number)) throw new Error("Cannot delete yourself");
-  if (!isAdmin(session!.user.personId as number)) throw new Error("Admin only");
-  deleteEmployee(personId);
+  if (!(await isAdmin(session!.user.personId as number))) throw new Error("Admin only");
+  await deleteEmployee(personId);
   revalidatePath("/employees");
   redirect("/employees");
 }
@@ -92,11 +92,11 @@ export async function changePasswordAction(oldPassword: string, newPassword: str
   const session = await requirePermission("home");
   const { changePassword } = await import("@/lib/employees/repository");
   const { verifyPassword } = await import("@/lib/auth/password");
-  const emp = getEmployee(session!.user.personId as number);
+  const emp = await getEmployee(session!.user.personId as number);
   if (!emp) throw new Error("Employee not found");
-  if (!verifyPassword(oldPassword, emp.password)) throw new Error("Old password incorrect");
+  if (!(await verifyPassword(oldPassword, emp.password))) throw new Error("Old password incorrect");
   const hashed = await hash(newPassword, 10);
-  changePassword(session!.user.personId as number, hashed);
+  await changePassword(session!.user.personId as number, hashed);
   return { ok: true };
 }
 

@@ -1,28 +1,27 @@
 import { requirePermission } from "@/lib/auth/with-permission";
 import { eq } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
-import { taxCodeLinks, taxCodes, taxCategories, taxJurisdictions } from "@/db/schema";
+import { getDb } from "@/lib/db";
+import { taxRates, taxCodes, taxCategories, taxJurisdictions } from "@/db/schema";
 import TaxRateTable from "@/components/taxes/tax-rate-table";
 import Link from "next/link";
 
 export default async function TaxesPage() {
   await requirePermission("taxes");
-  const db = getDbSync();
-  const rates = db.select({
-    taxCodeLinkId: taxCodeLinks.taxCodeLinkId,
-    taxRate: taxCodeLinks.taxRate,
-    roundCode: taxCodeLinks.roundCode,
-    cascadeSequence: taxCodeLinks.cascadeSequence,
+  const db = await getDb();
+  const rates = await db.select({
+    taxCodeLinkId: taxRates.taxRateId,
+    taxRate: taxRates.taxRate,
+    roundCode: taxRates.taxRoundingCode,
+    cascadeSequence: taxJurisdictions.cascadeSequence,
     taxCode: taxCodes.taxCode,
     taxCodeName: taxCodes.taxCodeName,
     taxCategory: taxCategories.taxCategory,
     jurisdictionName: taxJurisdictions.jurisdictionName,
   })
-    .from(taxCodeLinks)
-    .innerJoin(taxCodes, eq(taxCodes.taxCodeId, taxCodeLinks.taxCodeId))
-    .innerJoin(taxCategories, eq(taxCategories.taxCategoryId, taxCodeLinks.taxCategoryId))
-    .innerJoin(taxJurisdictions, eq(taxJurisdictions.jurisdictionId, taxCodeLinks.jurisdictionId))
-    .all();
+    .from(taxRates)
+    .innerJoin(taxCodes, eq(taxCodes.taxCodeId, taxRates.rateTaxCodeId))
+    .innerJoin(taxCategories, eq(taxCategories.taxCategoryId, taxRates.rateTaxCategoryId))
+    .innerJoin(taxJurisdictions, eq(taxJurisdictions.jurisdictionId, taxRates.rateJurisdictionId));
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">

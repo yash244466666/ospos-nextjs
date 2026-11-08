@@ -1,6 +1,6 @@
 import { requirePermission } from "@/lib/auth/with-permission";
 import { eq } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { taxCodes } from "@/db/schema";
 import TaxCodeForm from "@/components/taxes/tax-code-form";
 
@@ -8,7 +8,10 @@ export default async function TaxCodeEditPage({ params }: { params: Promise<{ id
   await requirePermission("taxes");
   const { id } = await params;
   const taxCodeId = parseInt(id, 10);
-  const db = getDbSync();
-  const row = taxCodeId > 0 ? (db.select().from(taxCodes).where(eq(taxCodes.taxCodeId, taxCodeId)).get() ?? null) : null;
+  const db = await getDb();
+  const rows = taxCodeId > 0
+    ? await db.select().from(taxCodes).where(eq(taxCodes.taxCodeId, taxCodeId)).limit(1)
+    : [];
+  const row = rows[0] ?? null;
   return <TaxCodeForm initial={row} />;
 }

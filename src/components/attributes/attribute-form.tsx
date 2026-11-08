@@ -6,7 +6,7 @@ import type { DefinitionRow, DefinitionType } from "@/lib/attributes/repository"
 
 const TYPES: DefinitionType[] = ["TEXT", "DROPDOWN", "DECIMAL", "DATE", "CHECKBOX", "GROUP"];
 
-interface Initial extends DefinitionRow {}
+type Initial = DefinitionRow;
 
 export default function AttributeForm({
   initial,

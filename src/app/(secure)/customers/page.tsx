@@ -6,7 +6,7 @@ import Link from "next/link";
 export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   await requirePermission("customers");
   const { q = "" } = await searchParams;
-  const rows = searchCustomers(q, 100);
+  const rows = await searchCustomers(q, 100);
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">

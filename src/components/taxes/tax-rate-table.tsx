@@ -6,7 +6,7 @@ import { deleteTaxRateAction } from "@/app/(secure)/taxes/actions";
 
 interface Row {
   taxCodeLinkId: number; taxCode: string; taxCodeName: string; taxCategory: string;
-  jurisdictionName: string; taxRate: number; roundCode: number; cascadeSequence: number;
+  jurisdictionName: string | null; taxRate: string; roundCode: number; cascadeSequence: number;
 }
 
 export default function TaxRateTable({ rows }: { rows: Row[] }) {
@@ -23,8 +23,8 @@ export default function TaxRateTable({ rows }: { rows: Row[] }) {
           <tr key={r.taxCodeLinkId} className="border-t">
             <td className="p-2 font-mono">{r.taxCode}</td>
             <td className="p-2">{r.taxCategory}</td>
-            <td className="p-2">{r.jurisdictionName}</td>
-            <td className="p-2 text-right">{r.taxRate.toFixed(4)}</td>
+            <td className="p-2">{r.jurisdictionName ?? ""}</td>
+            <td className="p-2 text-right">{Number(r.taxRate).toFixed(4)}</td>
             <td className="p-2">{r.roundCode}</td>
             <td className="p-2">{r.cascadeSequence}</td>
             <td className="p-2 space-x-2">

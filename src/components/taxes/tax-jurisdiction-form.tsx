@@ -4,8 +4,8 @@ import { useState, useTransition } from "react";
 import { saveTaxJurisdictionAction } from "@/app/(secure)/tax_jurisdictions/actions";
 
 interface Initial {
-  jurisdictionId: number; jurisdictionName: string; taxType: string; reportingAuthority: string | null;
-  taxableAmount: number | null; taxRate: number; taxGroup: string | null; roundCode: number; cascadeSequence: number; deleted: boolean;
+  jurisdictionId: number; jurisdictionName: string; taxType: number; reportingAuthority: string | null;
+  taxableAmount?: number | null; taxRate?: number; taxGroup: string | null; roundCode?: number; cascadeSequence: number; deleted: boolean;
 }
 
 export default function TaxJurisdictionForm({ initial }: { initial: Initial | null }) {

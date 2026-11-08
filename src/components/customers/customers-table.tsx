@@ -12,10 +12,10 @@ interface Row {
   phoneNumber: string | null;
   companyName: string | null;
   accountNumber: string | null;
-  discount: number;
+  discount: string;
   discountType: number;
   taxable: boolean;
-  points: number;
+  points: number | null;
 }
 
 export default function CustomersTable({ rows }: { rows: Row[] }) {

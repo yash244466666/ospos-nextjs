@@ -5,7 +5,7 @@ import Link from "next/link";
 import { deleteTaxJurisdictionAction } from "@/app/(secure)/tax_jurisdictions/actions";
 
 interface Row {
-  jurisdictionId: number; jurisdictionName: string; taxType: string; taxRate: number; roundCode: number; cascadeSequence: number;
+  jurisdictionId: number; jurisdictionName: string; taxType: number; taxRate?: number; roundCode?: number; cascadeSequence: number;
 }
 
 export default function TaxJurisdictionTable({ rows }: { rows: Row[] }) {
@@ -21,8 +21,8 @@ export default function TaxJurisdictionTable({ rows }: { rows: Row[] }) {
           <tr key={r.jurisdictionId} className="border-t">
             <td className="p-2">{r.jurisdictionName}</td>
             <td className="p-2">{r.taxType}</td>
-            <td className="p-2 text-right">{r.taxRate.toFixed(4)}</td>
-            <td className="p-2">{r.roundCode}</td>
+            <td className="p-2 text-right">{(r.taxRate ?? 0).toFixed(4)}</td>
+            <td className="p-2">{r.roundCode ?? ""}</td>
             <td className="p-2">{r.cascadeSequence}</td>
             <td className="p-2 space-x-2">
               <Link href={`/tax_jurisdictions/new/${r.jurisdictionId}`} className="text-blue-600">Edit</Link>

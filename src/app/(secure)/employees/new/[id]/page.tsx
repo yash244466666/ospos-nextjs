@@ -6,9 +6,9 @@ export default async function EmployeeEditPage({ params }: { params: Promise<{ i
   await requirePermission("employees");
   const { id } = await params;
   const personId = parseInt(id, 10);
-  const employee = personId > 0 ? getEmployee(personId) : null;
-  const allPerms = listAllPermissions();
-  const currentGrants = personId > 0 ? listEmployeeGrants(personId).map((g) => g.permissionId) : [];
+  const employee = personId > 0 ? await getEmployee(personId) : null;
+  const allPerms = await listAllPermissions();
+  const currentGrants = personId > 0 ? (await listEmployeeGrants(personId)).map((g) => g.permissionId) : [];
   const grantsByModule = new Map<string, { permissionId: string; moduleName: string }[]>();
   for (const p of allPerms) {
     if (!grantsByModule.has(p.moduleId)) grantsByModule.set(p.moduleId, []);

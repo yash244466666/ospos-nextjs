@@ -4,23 +4,24 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { requirePermission } from "@/lib/auth/with-permission";
-import { getDbSync } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { taxCategories } from "@/db/schema";
 
 export async function saveTaxCategoryAction(formData: FormData) {
   await requirePermission("taxes");
-  const db = getDbSync();
+  const db = await getDb();
   const id = parseInt((formData.get("taxCategoryId") as string) || "0", 10);
   const taxCategory = ((formData.get("taxCategory") as string) || "").trim();
-  const taxGroupSeq = (formData.get("taxGroupSeq") as string) || null;
+  const taxGroupSequence = parseInt((formData.get("taxGroupSeq") as string) || "0", 10) || 0;
   if (!taxCategory) throw new Error("Name required");
-  const data = { taxCategory, taxGroupSeq };
+  const data = { taxCategory, taxGroupSequence };
   let outId: number;
   if (id > 0) {
-    db.update(taxCategories).set(data).where(eq(taxCategories.taxCategoryId, id)).run();
+    await db.update(taxCategories).set(data).where(eq(taxCategories.taxCategoryId, id));
     outId = id;
   } else {
-    outId = db.insert(taxCategories).values({ ...data, deleted: false }).returning({ id: taxCategories.taxCategoryId }).get().id;
+    const inserted = await db.insert(taxCategories).values({ ...data, deleted: false }).returning({ id: taxCategories.taxCategoryId });
+    outId = inserted[0].id;
   }
   revalidatePath("/tax_categories");
   redirect(`/tax_categories/new/${outId}`);
@@ -28,8 +29,8 @@ export async function saveTaxCategoryAction(formData: FormData) {
 
 export async function deleteTaxCategoryAction(taxCategoryId: number) {
   await requirePermission("taxes");
-  const db = getDbSync();
-  db.update(taxCategories).set({ deleted: true }).where(eq(taxCategories.taxCategoryId, taxCategoryId)).run();
+  const db = await getDb();
+  await db.update(taxCategories).set({ deleted: true }).where(eq(taxCategories.taxCategoryId, taxCategoryId));
   revalidatePath("/tax_categories");
 }
 import { getAllTaxCategories, getTaxCategory, getTaxCategorySuggestions } from "@/lib/taxes/repository";

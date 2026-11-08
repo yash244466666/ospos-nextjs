@@ -1,14 +1,11 @@
 import { requirePermission } from "@/lib/auth/with-permission";
-import { eq } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
-import { taxJurisdictions } from "@/db/schema";
+import { getAllJurisdictions } from "@/lib/taxes/repository";
 import TaxJurisdictionTable from "@/components/taxes/tax-jurisdiction-table";
 import Link from "next/link";
 
 export default async function TaxJurisdictionsPage() {
   await requirePermission("taxes");
-  const db = getDbSync();
-  const rows = db.select().from(taxJurisdictions).where(eq(taxJurisdictions.deleted, false)).all();
+  const rows = await getAllJurisdictions();
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">

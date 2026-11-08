@@ -19,7 +19,7 @@ interface Initial {
   comments: string | null;
   companyName: string | null;
   accountNumber: string | null;
-  discount: number | null;
+  discount: string | null;
   discountType: number | null;
   taxable: boolean | null;
   points: number | null;

@@ -1,6 +1,8 @@
-import { eq, and, sql, like, asc } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
-import { taxCategories, taxCodes, taxJurisdictions, taxCodeLinks } from "@/db/schema";
+import { and, asc, eq, like, sql } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import { withTransaction } from "@/lib/db/transaction";
+import { taxCategories, taxCodes, taxJurisdictions, taxRates } from "@/db/schema";
+import { toDbDecimal } from "@/lib/money";
 
 export interface TaxCategoryRow {
   taxCategoryId: number;
@@ -21,12 +23,10 @@ export interface TaxCodeRow {
 export interface TaxJurisdictionRow {
   jurisdictionId: number;
   jurisdictionName: string;
-  taxType: string;
+  taxType: number;
   reportingAuthority: string | null;
-  taxableAmount: number | null;
-  taxRate: number;
-  taxGroup: string | null;
-  roundCode: number;
+  taxGroup: string;
+  taxGroupSequence: number;
   cascadeSequence: number;
   deleted: boolean;
 }
@@ -35,167 +35,322 @@ export interface TaxCodeLinkRow {
   taxCodeId: number;
   taxCategoryId: number;
   jurisdictionId: number;
-  taxRate: number;
+  taxRate: string;
   roundCode: number;
   cascadeSequence: number;
+  taxRateId?: number;
+  /** Legacy alias for `taxRateId`, retained for the tax-rate screens. */
+  taxCodeLinkId?: number;
+  taxCode?: string | null;
+  taxCodeName?: string | null;
+  taxCategory?: string | null;
+  jurisdictionName?: string | null;
 }
 
-export function getAllTaxCategories(): TaxCategoryRow[] {
-  return getDbSync().select().from(taxCategories)
+export async function getAllTaxCategories(): Promise<TaxCategoryRow[]> {
+  const db = await getDb();
+  const rows = await db
+    .select({
+      taxCategoryId: taxCategories.taxCategoryId,
+      taxCategory: taxCategories.taxCategory,
+      taxGroupSeq: taxCategories.taxGroupSequence,
+      deleted: taxCategories.deleted,
+    })
+    .from(taxCategories)
     .where(eq(taxCategories.deleted, false))
-    .orderBy(asc(taxCategories.taxCategory))
-    .all() as TaxCategoryRow[];
+    .orderBy(asc(taxCategories.taxGroupSequence), asc(taxCategories.taxCategory));
+  return rows.map((r) => ({
+    ...r,
+    taxGroupSeq: r.taxGroupSeq === null ? null : String(r.taxGroupSeq),
+  }));
 }
 
-export function getTaxCategory(taxCategoryId: number): TaxCategoryRow | null {
-  return (getDbSync().select().from(taxCategories)
-    .where(eq(taxCategories.taxCategoryId, taxCategoryId)).get() as TaxCategoryRow) ?? null;
+export async function getTaxCategory(taxCategoryId: number): Promise<TaxCategoryRow | null> {
+  const db = await getDb();
+  const rows = await db
+    .select({
+      taxCategoryId: taxCategories.taxCategoryId,
+      taxCategory: taxCategories.taxCategory,
+      taxGroupSeq: taxCategories.taxGroupSequence,
+      deleted: taxCategories.deleted,
+    })
+    .from(taxCategories)
+    .where(and(eq(taxCategories.taxCategoryId, taxCategoryId), eq(taxCategories.deleted, false)))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  return { ...row, taxGroupSeq: String(row.taxGroupSeq) };
 }
 
 export function getEmptyTaxCategory(): TaxCategoryRow {
   return { taxCategoryId: 0, taxCategory: "", taxGroupSeq: null, deleted: false };
 }
 
-export function saveTaxCategory(input: TaxCategoryRow): number {
-  const db = getDbSync();
-  return db.transaction((tx) => {
+export async function saveTaxCategory(input: TaxCategoryRow): Promise<number> {
+  const values = {
+    taxCategory: input.taxCategory,
+    taxGroupSequence: Number(input.taxGroupSeq ?? 0) || 0,
+  };
+  return withTransaction(async (tx) => {
     if (input.taxCategoryId) {
-      tx.update(taxCategories).set({ taxCategory: input.taxCategory, taxGroupSeq: input.taxGroupSeq })
-        .where(eq(taxCategories.taxCategoryId, input.taxCategoryId)).run();
+      await tx
+        .update(taxCategories)
+        .set(values)
+        .where(eq(taxCategories.taxCategoryId, input.taxCategoryId));
       return input.taxCategoryId;
     }
-    return tx.insert(taxCategories).values({
-      taxCategory: input.taxCategory, taxGroupSeq: input.taxGroupSeq, deleted: false,
-    }).returning({ id: taxCategories.taxCategoryId }).get().id;
+    const inserted = await tx
+      .insert(taxCategories)
+      .values({ ...values, deleted: false })
+      .returning({ id: taxCategories.taxCategoryId });
+    const result = Array.isArray(inserted) ? inserted[0] : inserted;
+    return result.id;
   });
 }
 
-export function deleteTaxCategory(taxCategoryId: number): void {
-  getDbSync().update(taxCategories).set({ deleted: true })
-    .where(eq(taxCategories.taxCategoryId, taxCategoryId)).run();
+export async function deleteTaxCategory(taxCategoryId: number): Promise<void> {
+  const db = await getDb();
+  await db
+    .update(taxCategories)
+    .set({ deleted: true })
+    .where(eq(taxCategories.taxCategoryId, taxCategoryId));
 }
 
-export function getTaxCategorySuggestions(term: string, limit = 25): TaxCategoryRow[] {
-  return getDbSync().select().from(taxCategories)
+export async function getTaxCategorySuggestions(
+  term: string,
+  limit = 25,
+): Promise<TaxCategoryRow[]> {
+  const db = await getDb();
+  const rows = await db
+    .select({
+      taxCategoryId: taxCategories.taxCategoryId,
+      taxCategory: taxCategories.taxCategory,
+      taxGroupSeq: taxCategories.taxGroupSequence,
+      deleted: taxCategories.deleted,
+    })
+    .from(taxCategories)
     .where(and(eq(taxCategories.deleted, false), like(taxCategories.taxCategory, `%${term}%`)))
-    .orderBy(asc(taxCategories.taxCategory)).limit(limit).all() as TaxCategoryRow[];
+    .orderBy(asc(taxCategories.taxCategory))
+    .limit(limit);
+  return rows.map((r) => ({ ...r, taxGroupSeq: String(r.taxGroupSeq) }));
 }
 
-export function getAllTaxCodes(): TaxCodeRow[] {
-  return getDbSync().select().from(taxCodes)
+export async function getAllTaxCodes(): Promise<TaxCodeRow[]> {
+  const db = await getDb();
+  return db
+    .select()
+    .from(taxCodes)
     .where(eq(taxCodes.deleted, false))
-    .orderBy(asc(taxCodes.taxCodeName))
-    .all() as TaxCodeRow[];
+    .orderBy(asc(taxCodes.taxCodeName));
 }
 
-export function getTaxCode(taxCodeId: number): TaxCodeRow | null {
-  return (getDbSync().select().from(taxCodes)
-    .where(eq(taxCodes.taxCodeId, taxCodeId)).get() as TaxCodeRow) ?? null;
+export async function getTaxCode(taxCodeId: number): Promise<TaxCodeRow | null> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(taxCodes)
+    .where(and(eq(taxCodes.taxCodeId, taxCodeId), eq(taxCodes.deleted, false)))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export function getEmptyTaxCode(): TaxCodeRow {
   return { taxCodeId: 0, taxCode: "", taxCodeName: "", city: null, state: null, deleted: false };
 }
 
-export function saveTaxCode(input: { taxCodeId?: number; taxCode: string; taxCodeName: string; city: string | null; state: string | null; jurisdictions: TaxCodeLinkRow[] }): number {
-  const db = getDbSync();
-  return db.transaction((tx) => {
+export async function saveTaxCode(input: {
+  taxCodeId?: number;
+  taxCode: string;
+  taxCodeName: string;
+  city: string | null;
+  state: string | null;
+  jurisdictions: TaxCodeLinkRow[];
+}): Promise<number> {
+  return withTransaction(async (tx) => {
     let id = input.taxCodeId;
+    const values = {
+      taxCode: input.taxCode,
+      taxCodeName: input.taxCodeName,
+      city: input.city ?? "",
+      state: input.state ?? "",
+    };
     if (id) {
-      tx.update(taxCodes).set({
-        taxCode: input.taxCode, taxCodeName: input.taxCodeName,
-        city: input.city, state: input.state,
-      }).where(eq(taxCodes.taxCodeId, id)).run();
+      await tx.update(taxCodes).set(values).where(eq(taxCodes.taxCodeId, id));
     } else {
-      id = tx.insert(taxCodes).values({
-        taxCode: input.taxCode, taxCodeName: input.taxCodeName,
-        city: input.city, state: input.state, deleted: false,
-      }).returning({ id: taxCodes.taxCodeId }).get().id;
+      const inserted = await tx
+        .insert(taxCodes)
+        .values({ ...values, deleted: false })
+        .returning({ id: taxCodes.taxCodeId });
+      const result = Array.isArray(inserted) ? inserted[0] : inserted;
+      id = result.id;
     }
-    tx.delete(taxCodeLinks).where(eq(taxCodeLinks.taxCodeId, id!)).run();
+    await tx.delete(taxRates).where(eq(taxRates.rateTaxCodeId, id));
     for (const j of input.jurisdictions) {
-      tx.insert(taxCodeLinks).values({ taxCodeId: id!, jurisdictionId: j.jurisdictionId, taxCategoryId: j.taxCategoryId, taxRate: j.taxRate, roundCode: j.roundCode, cascadeSequence: j.cascadeSequence }).run();
+      await tx.insert(taxRates).values({
+        rateTaxCodeId: id,
+        rateTaxCategoryId: j.taxCategoryId,
+        rateJurisdictionId: j.jurisdictionId,
+        taxRate: toDbDecimal(j.taxRate, 4),
+        taxRoundingCode: j.roundCode,
+      });
     }
-    return id!;
+    return id;
   });
 }
 
-export function deleteTaxCode(taxCodeId: number): void {
-  getDbSync().update(taxCodes).set({ deleted: true }).where(eq(taxCodes.taxCodeId, taxCodeId)).run();
+export async function deleteTaxCode(taxCodeId: number): Promise<void> {
+  const db = await getDb();
+  await db.update(taxCodes).set({ deleted: true }).where(eq(taxCodes.taxCodeId, taxCodeId));
 }
 
-export function getTaxCodeSearchSuggestions(term: string, limit = 25): TaxCodeRow[] {
-  return getDbSync().select().from(taxCodes)
+export async function getTaxCodeSearchSuggestions(
+  term: string,
+  limit = 25,
+): Promise<TaxCodeRow[]> {
+  const db = await getDb();
+  return db
+    .select()
+    .from(taxCodes)
     .where(and(eq(taxCodes.deleted, false), like(taxCodes.taxCodeName, `%${term}%`)))
-    .orderBy(asc(taxCodes.taxCodeName)).limit(limit).all() as TaxCodeRow[];
+    .orderBy(asc(taxCodes.taxCodeName))
+    .limit(limit);
 }
 
-export function getTaxCodeLinks(taxCodeId: number): TaxCodeLinkRow[] {
-  return getDbSync().select().from(taxCodeLinks)
-    .where(eq(taxCodeLinks.taxCodeId, taxCodeId)).all() as TaxCodeLinkRow[];
+export async function getTaxCodeLinks(taxCodeId: number): Promise<TaxCodeLinkRow[]> {
+  const db = await getDb();
+  const rows = await db
+    .select({
+      taxRateId: taxRates.taxRateId,
+      taxCodeId: taxRates.rateTaxCodeId,
+      taxCategoryId: taxRates.rateTaxCategoryId,
+      jurisdictionId: taxRates.rateJurisdictionId,
+      taxRate: taxRates.taxRate,
+      roundCode: taxRates.taxRoundingCode,
+      cascadeSequence: taxJurisdictions.cascadeSequence,
+      taxCode: taxCodes.taxCode,
+      taxCodeName: taxCodes.taxCodeName,
+      taxCategory: taxCategories.taxCategory,
+      jurisdictionName: taxJurisdictions.jurisdictionName,
+    })
+    .from(taxRates)
+    .leftJoin(taxCodes, eq(taxCodes.taxCodeId, taxRates.rateTaxCodeId))
+    .leftJoin(taxCategories, eq(taxCategories.taxCategoryId, taxRates.rateTaxCategoryId))
+    .leftJoin(taxJurisdictions, eq(taxJurisdictions.jurisdictionId, taxRates.rateJurisdictionId))
+    .where(eq(taxRates.rateTaxCodeId, taxCodeId))
+    .orderBy(asc(taxJurisdictions.cascadeSequence), asc(taxJurisdictions.taxGroup));
+  return rows.map((r) => ({
+    ...r,
+    taxCodeLinkId: r.taxRateId,
+    cascadeSequence: r.cascadeSequence ?? 0,
+    jurisdictionName: r.jurisdictionName ?? "",
+  }));
 }
 
-export function getAllJurisdictions(): TaxJurisdictionRow[] {
-  return getDbSync().select().from(taxJurisdictions)
+export async function getAllJurisdictions(): Promise<TaxJurisdictionRow[]> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(taxJurisdictions)
     .where(eq(taxJurisdictions.deleted, false))
-    .orderBy(asc(taxJurisdictions.jurisdictionName))
-    .all() as TaxJurisdictionRow[];
+    .orderBy(asc(taxJurisdictions.jurisdictionName));
+  return rows.map((r) => ({ ...r, jurisdictionName: r.jurisdictionName ?? "" }));
 }
 
-export function getJurisdiction(jurisdictionId: number): TaxJurisdictionRow | null {
-  return (getDbSync().select().from(taxJurisdictions)
-    .where(eq(taxJurisdictions.jurisdictionId, jurisdictionId)).get() as TaxJurisdictionRow) ?? null;
+export async function getJurisdiction(
+  jurisdictionId: number,
+): Promise<TaxJurisdictionRow | null> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(taxJurisdictions)
+    .where(
+      and(
+        eq(taxJurisdictions.jurisdictionId, jurisdictionId),
+        eq(taxJurisdictions.deleted, false),
+      ),
+    )
+    .limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  return { ...row, jurisdictionName: row.jurisdictionName ?? "" };
 }
 
 export function getEmptyJurisdiction(): TaxJurisdictionRow {
-  return { jurisdictionId: 0, jurisdictionName: "", taxType: "EXCLUDED", reportingAuthority: null, taxableAmount: null, taxRate: 0, taxGroup: null, roundCode: 1, cascadeSequence: 0, deleted: false };
+  return {
+    jurisdictionId: 0,
+    jurisdictionName: "",
+    taxType: 1,
+    reportingAuthority: null,
+    taxGroup: "",
+    taxGroupSequence: 0,
+    cascadeSequence: 0,
+    deleted: false,
+  };
 }
 
-export function saveJurisdiction(input: TaxJurisdictionRow): number {
-  const db = getDbSync();
-  return db.transaction((tx) => {
+export async function saveJurisdiction(input: TaxJurisdictionRow): Promise<number> {
+  const values = {
+    jurisdictionName: input.jurisdictionName ?? "",
+    taxType: Number(input.taxType) || 0,
+    reportingAuthority: input.reportingAuthority,
+    taxGroup: input.taxGroup ?? "",
+    taxGroupSequence: Number(input.taxGroupSequence) || 0,
+    cascadeSequence: Number(input.cascadeSequence) || 0,
+  };
+  return withTransaction(async (tx) => {
     if (input.jurisdictionId) {
-      tx.update(taxJurisdictions).set({
-        jurisdictionName: input.jurisdictionName, taxType: input.taxType,
-        reportingAuthority: input.reportingAuthority, taxableAmount: input.taxableAmount,
-        taxRate: input.taxRate, taxGroup: input.taxGroup,
-        roundCode: input.roundCode, cascadeSequence: input.cascadeSequence,
-      }).where(eq(taxJurisdictions.jurisdictionId, input.jurisdictionId)).run();
+      await tx
+        .update(taxJurisdictions)
+        .set(values)
+        .where(eq(taxJurisdictions.jurisdictionId, input.jurisdictionId));
       return input.jurisdictionId;
     }
-    return tx.insert(taxJurisdictions).values({
-      jurisdictionName: input.jurisdictionName, taxType: input.taxType,
-      reportingAuthority: input.reportingAuthority, taxableAmount: input.taxableAmount,
-      taxRate: input.taxRate, taxGroup: input.taxGroup,
-      roundCode: input.roundCode, cascadeSequence: input.cascadeSequence, deleted: false,
-    }).returning({ id: taxJurisdictions.jurisdictionId }).get().id;
+    const inserted = await tx
+      .insert(taxJurisdictions)
+      .values({ ...values, deleted: false })
+      .returning({ id: taxJurisdictions.jurisdictionId });
+    const result = Array.isArray(inserted) ? inserted[0] : inserted;
+    return result.id;
   });
 }
 
-export function deleteJurisdiction(jurisdictionId: number): void {
-  getDbSync().update(taxJurisdictions).set({ deleted: true })
-    .where(eq(taxJurisdictions.jurisdictionId, jurisdictionId)).run();
+export async function deleteJurisdiction(jurisdictionId: number): Promise<void> {
+  const db = await getDb();
+  await db
+    .update(taxJurisdictions)
+    .set({ deleted: true })
+    .where(eq(taxJurisdictions.jurisdictionId, jurisdictionId));
 }
 
-export function getTaxCategoryUsage(taxCategoryId: number): number {
-  const r = getDbSync().select({ c: sql<number>`count(*)` })
-    .from(taxCodeLinks).where(eq(taxCodeLinks.taxCategoryId, taxCategoryId)).get();
-  return r?.c ?? 0;
+export async function getTaxCategoryUsage(taxCategoryId: number): Promise<number> {
+  const db = await getDb();
+  const rows = await db
+    .select({ c: sql<number>`count(*)` })
+    .from(taxRates)
+    .where(eq(taxRates.rateTaxCategoryId, taxCategoryId));
+  return Number(rows[0]?.c ?? 0);
 }
 
-export function getRateInfo(taxCodeId: number, taxCategoryId: number): number {
-  const r = getDbSync().select({ r: taxCodeLinks.taxRate })
-    .from(taxCodeLinks)
-    .where(and(eq(taxCodeLinks.taxCodeId, taxCodeId), eq(taxCodeLinks.taxCategoryId, taxCategoryId)))
-    .get();
-  return r?.r ?? 0;
+export async function getRateInfo(taxCodeId: number, taxCategoryId: number): Promise<string> {
+  const db = await getDb();
+  const rows = await db
+    .select({ r: taxRates.taxRate })
+    .from(taxRates)
+    .where(
+      and(eq(taxRates.rateTaxCodeId, taxCodeId), eq(taxRates.rateTaxCategoryId, taxCategoryId)),
+    )
+    .limit(1);
+  return rows[0]?.r ?? "0";
 }
 
-export function getTaxCategoryId(name: string): number | null {
-  const r = getDbSync().select({ id: taxCategories.taxCategoryId })
-    .from(taxCategories).where(and(eq(taxCategories.taxCategory, name), eq(taxCategories.deleted, false)))
-    .get();
-  return r?.id ?? null;
+export async function getTaxCategoryId(name: string): Promise<number | null> {
+  const db = await getDb();
+  const rows = await db
+    .select({ id: taxCategories.taxCategoryId })
+    .from(taxCategories)
+    .where(and(eq(taxCategories.taxCategory, name), eq(taxCategories.deleted, false)))
+    .limit(1);
+  return rows[0]?.id ?? null;
 }
 
 export const getTaxCategories = getAllTaxCategories;

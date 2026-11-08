@@ -5,7 +5,7 @@ import Link from "next/link";
 
 export default async function AttributesPage() {
   await requirePermission("attributes");
-  const rows = listDefinitions();
+  const rows = await listDefinitions();
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">

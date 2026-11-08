@@ -6,8 +6,8 @@ export default async function AttributeEditPage({ params }: { params: Promise<{ 
   await requirePermission("attributes");
   const { id } = await params;
   const definitionId = parseInt(id, 10);
-  const def = getDefinition(definitionId);
-  const values = definitionId > 0 ? listDropdownValues(definitionId) : [];
-  const allDefs = listDefinitions().filter((d) => d.definitionType === "GROUP" && d.definitionId !== definitionId);
+  const def = await getDefinition(definitionId);
+  const values = definitionId > 0 ? await listDropdownValues(definitionId) : [];
+  const allDefs = (await listDefinitions()).filter((d) => d.definitionType === "GROUP" && d.definitionId !== definitionId);
   return <AttributeForm initial={def} values={values} groups={allDefs} />;
 }

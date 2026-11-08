@@ -6,6 +6,6 @@ export default async function CustomerEditPage({ params }: { params: Promise<{ i
   await requirePermission("customers");
   const { id } = await params;
   const personId = parseInt(id, 10);
-  const customer = personId > 0 ? getCustomer(personId) : null;
+  const customer = personId > 0 ? await getCustomer(personId) : null;
   return <CustomerForm initial={customer} />;
 }

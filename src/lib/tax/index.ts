@@ -1,72 +1,557 @@
-import { and, eq } from "drizzle-orm";
-import { getDbSync } from "@/lib/db";
-import { items, itemsTaxes, taxCodeLinks, taxJurisdictions, taxCodes, taxCategories, customers, people, sales } from "@/db/schema";
-import { getConfigBool, getConfigNumber, getConfig, taxDecimals, totalsDecimals } from "@/lib/config";
-import { ROUNDING_MODE, TAX_TYPE } from "@/lib/constants";
+import { and, asc, eq } from "drizzle-orm";
+import { getDb } from "@/lib/db";
+import {
+  customers,
+  itemsTaxes,
+  people,
+  salesItemsTaxes,
+  taxCategories,
+  taxCodes,
+  taxJurisdictions,
+  taxRates,
+} from "@/db/schema";
+import {
+  bcAdd,
+  bcDiv,
+  bcMul,
+  bcSub,
+  dec,
+  phpRound,
+  taxRound,
+  toDbDecimal,
+  type DecimalInput,
+  type RoundingMode,
+} from "@/lib/money";
+import { getConfig, getConfigBool, getConfigNumber, loadConfig, taxDecimals, totalsDecimals } from "@/lib/config";
+import { ROUNDING_MODE, DISCOUNT_TYPE } from "@/lib/constants";
+import { lang } from "@/lib/i18n/lang";
 
-export interface CartLine {
-  itemId: number;
-  quantity: number;
-  price: number;
-  discount: number;
-  discountType: number;
-  taxCategoryId: number | null;
-  isSerialized: boolean;
-  stockType?: number;
-}
+export const TAX_TYPE_EXCLUDED = 1;
+export const TAX_TYPE_INCLUDED = 0;
 
-export interface ItemTax {
+export interface TaxCartLine {
   itemId: number;
   line: number;
-  name: string;
-  percent: number;
-  taxType: number;
-  roundCode: number;
-  cascadeSequence: number;
-  itemTaxAmount: number;
+  quantity: DecimalInput;
+  price: DecimalInput;
+  discount: DecimalInput;
+  discountType: number;
+  taxCategoryId: number | null;
 }
 
 export interface SaleTaxGroup {
+  saleId: number;
   taxType: number;
-  roundCode: number;
   taxGroup: string;
-  saleTaxBasis: number;
-  saleTaxAmount: number;
+  saleTaxBasis: string;
+  saleTaxAmount: string;
+  printSequence: number;
+  name: string;
+  taxRate: string;
+  salesTaxCodeId: number | null;
+  jurisdictionId: number | null;
+  taxCategoryId: number | null;
+  roundingCode: number;
 }
 
-export function roundNumber(value: number, mode: number, decimals: number): number {
-  const factor = Math.pow(10, decimals);
-  const scaled = value * factor;
-  switch (mode) {
-    case ROUNDING_MODE.HALF_UP:
-      return Math.round(scaled) / factor;
-    case ROUNDING_MODE.HALF_DOWN: {
-      const floor = Math.floor(scaled);
-      return (scaled - floor > 0.5 ? floor + 1 : floor) / factor;
-    }
-    case ROUNDING_MODE.HALF_EVEN: {
-      const floor = Math.floor(scaled);
-      const diff = scaled - floor;
-      if (diff > 0.5) return (floor + 1) / factor;
-      if (diff < 0.5) return floor / factor;
-      return (floor % 2 === 0 ? floor : floor + 1) / factor;
-    }
-    case ROUNDING_MODE.HALF_ODD: {
-      const floor = Math.floor(scaled);
-      const diff = scaled - floor;
-      if (diff > 0.5) return (floor + 1) / factor;
-      if (diff < 0.5) return floor / factor;
-      return (floor % 2 === 0 ? floor + 1 : floor) / factor;
-    }
-    case ROUNDING_MODE.ROUND_UP:
-      return Math.ceil(scaled) / factor;
-    case ROUNDING_MODE.ROUND_DOWN:
-      return Math.floor(scaled) / factor;
-    case ROUNDING_MODE.HALF_FIVE:
-      return Math.round(scaled * 2) / (factor * 2);
-    default:
-      return Math.round(scaled) / factor;
+export interface ItemTaxDetail {
+  itemId: number;
+  line: number;
+  name: string;
+  percent: string;
+  taxType: number;
+  roundingCode: number;
+  cascadeSequence: number;
+  itemTaxAmount: string;
+  salesTaxCodeId: number | null;
+  jurisdictionId: number | null;
+  taxCategoryId: number | null;
+  taxGroupSequence?: number;
+}
+
+export interface TaxResult {
+  taxes: SaleTaxGroup[];
+  itemTaxes: ItemTaxDetail[];
+  taxedFlags: Record<number, string>;
+}
+
+export interface TaxOptions {
+  saleId?: number;
+  registerMode?: string;
+  customerId?: number;
+}
+
+/** `Tax_lib::clean` — spaces to hyphens, strip everything outside [A-Za-z0-9-]. */
+export function clean(value: string): string {
+  return value.replace(/ /g, "-").replace(/[^A-Za-z0-9-]/g, "");
+}
+
+/** `Sale_lib::get_item_discount`: round at totals decimals with HALF_UP. */
+export function getItemDiscount(
+  quantity: DecimalInput,
+  price: DecimalInput,
+  discount: DecimalInput,
+  discountType: number,
+): string {
+  const total = bcMul(quantity, price);
+  const amount =
+    discountType === DISCOUNT_TYPE.PERCENT
+      ? bcMul(total, bcDiv(discount, "100"))
+      : bcMul(quantity, discount);
+  return toDbDecimal(phpRound(amount, totalsDecimals(), ROUNDING_MODE.HALF_UP), totalsDecimals());
+}
+
+/** `Sale_lib::get_item_total`: bcmath scale, discount already rounded. */
+export function getItemTotal(
+  quantity: DecimalInput,
+  price: DecimalInput,
+  discount: DecimalInput,
+  discountType: number,
+  includeDiscount = false,
+): string {
+  const total = bcMul(quantity, price);
+  if (!includeDiscount) return toDbDecimal(total, 4);
+  return toDbDecimal(bcSub(total, getItemDiscount(quantity, price, discount, discountType)), 4);
+}
+
+/** `Tax_lib::get_tax_for_amount`: truncating bcmath then PHP rounding. */
+export function getTaxForAmount(
+  taxBasis: DecimalInput,
+  taxPercentage: DecimalInput,
+  roundingMode: RoundingMode,
+  decimals: number,
+): string {
+  const fraction = bcDiv(taxPercentage, "100");
+  const amount = bcMul(taxBasis, fraction);
+  return toDbDecimal(phpRound(amount, decimals, roundingMode), decimals);
+}
+
+/** `Tax_lib::get_included_tax`: unrounded, bcmath scale. */
+export function getIncludedTax(
+  quantity: DecimalInput,
+  price: DecimalInput,
+  discount: DecimalInput,
+  discountType: number,
+  taxPercentage: DecimalInput,
+): string {
+  const total = getItemTotal(quantity, price, discount, discountType, true);
+  const fraction = bcDiv(bcAdd("100", taxPercentage), "100");
+  const exclusive = bcDiv(total, fraction);
+  return toDbDecimal(bcSub(total, exclusive), 4);
+}
+
+export function getItemSalesTax(
+  quantity: DecimalInput,
+  price: DecimalInput,
+  discount: DecimalInput,
+  discountType: number,
+  taxPercentage: DecimalInput,
+  roundingCode: RoundingMode,
+): string {
+  const basis = getItemTotal(quantity, price, discount, discountType, true);
+  return getTaxForAmount(basis, taxPercentage, roundingCode, taxDecimals());
+}
+
+function updateTaxes(
+  taxes: Map<string, SaleTaxGroup>,
+  values: {
+    saleId: number;
+    taxType: number;
+    taxGroup: string;
+    taxRate: DecimalInput;
+    taxBasis: DecimalInput;
+    itemTaxAmount: DecimalInput;
+    printSequence: number;
+    roundingCode: number;
+    name: string;
+    salesTaxCodeId?: number | null;
+    jurisdictionId?: number | null;
+    taxCategoryId?: number | null;
+  },
+): void {
+  const key = clean(`X${Number(dec(values.taxRate).toString())}% ${values.taxGroup}`);
+  const existing = taxes.get(key);
+  if (!existing) {
+    taxes.set(key, {
+      saleId: values.saleId,
+      taxType: values.taxType,
+      taxGroup: values.taxGroup,
+      saleTaxBasis: toDbDecimal(values.taxBasis, 4),
+      saleTaxAmount: toDbDecimal(values.itemTaxAmount, 4),
+      printSequence: values.printSequence,
+      name: values.name,
+      taxRate: toDbDecimal(values.taxRate, 4),
+      salesTaxCodeId: values.salesTaxCodeId ?? null,
+      jurisdictionId: values.jurisdictionId ?? null,
+      taxCategoryId: values.taxCategoryId ?? null,
+      roundingCode: values.roundingCode,
+    });
+    return;
   }
+  existing.saleTaxBasis = toDbDecimal(bcAdd(existing.saleTaxBasis, values.taxBasis, 4), 4);
+  existing.saleTaxAmount = toDbDecimal(
+    bcAdd(existing.saleTaxAmount, values.itemTaxAmount, 4),
+    4,
+  );
+}
+
+/**
+ * `Tax_lib::round_taxes`: sort by print_sequence, then round with the inline
+ * branch (UD-01). The decimal scale depends on the global `tax_included` flag,
+ * not on each row's `tax_type`.
+ */
+export function roundTaxes(taxes: SaleTaxGroup[]): SaleTaxGroup[] {
+  const sorted = [...taxes].sort((a, b) => a.printSequence - b.printSequence);
+  const included = getConfigBool("tax_included", false);
+  const decimals = included ? taxDecimals() : totalsDecimals();
+  return sorted.map((tax) => ({
+    ...tax,
+    saleTaxAmount: toDbDecimal(
+      taxRound(tax.saleTaxAmount, decimals, tax.roundingCode as RoundingMode),
+      decimals,
+    ),
+  }));
+}
+
+/** `Tax_lib::apply_invoice_taxing`: recompute group amounts from basis/rate. */
+export function applyInvoiceTaxing(taxes: SaleTaxGroup[]): SaleTaxGroup[] {
+  const sorted = [...taxes].sort((a, b) => a.printSequence - b.printSequence);
+  const decimals = totalsDecimals();
+  return sorted.map((tax) => ({
+    ...tax,
+    saleTaxAmount: toDbDecimal(
+      phpRound(
+        bcMul(tax.saleTaxBasis, bcDiv(tax.taxRate, "100")),
+        decimals,
+        tax.roundingCode as RoundingMode,
+      ),
+      decimals,
+    ),
+  }));
+}
+
+async function getCustomerInfo(customerId: number) {
+  const db = await getDb();
+  const rows = await db
+    .select({
+      taxable: customers.taxable,
+      city: people.city,
+      state: people.state,
+      salesTaxCodeId: customers.salesTaxCodeId,
+    })
+    .from(customers)
+    .innerJoin(people, eq(people.personId, customers.personId))
+    .where(eq(customers.personId, customerId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+interface DestinationRate {
+  taxRateId: number;
+  taxRate: string;
+  taxRoundingCode: number;
+  cascadeSequence: number;
+  taxType: number;
+  taxGroup: string;
+  jurisdictionName: string | null;
+  jurisdictionId: number;
+  taxCategoryId: number;
+  taxGroupSequence: number;
+}
+
+async function getTaxDefinition(
+  taxCodeId: number,
+  taxCategoryId: number,
+): Promise<DestinationRate[]> {
+  const db = await getDb();
+  const rows = await db
+    .select({
+      taxRateId: taxRates.taxRateId,
+      taxRate: taxRates.taxRate,
+      taxRoundingCode: taxRates.taxRoundingCode,
+      cascadeSequence: taxJurisdictions.cascadeSequence,
+      taxType: taxJurisdictions.taxType,
+      taxGroup: taxJurisdictions.taxGroup,
+      jurisdictionName: taxJurisdictions.jurisdictionName,
+      jurisdictionId: taxJurisdictions.jurisdictionId,
+      taxCategoryId: taxRates.rateTaxCategoryId,
+      taxGroupSequence: taxCategories.taxGroupSequence,
+      jurisdictionGroupSequence: taxJurisdictions.taxGroupSequence,
+    })
+    .from(taxRates)
+    .leftJoin(taxCodes, eq(taxCodes.taxCodeId, taxRates.rateTaxCodeId))
+    .leftJoin(taxCategories, eq(taxCategories.taxCategoryId, taxRates.rateTaxCategoryId))
+    .leftJoin(
+      taxJurisdictions,
+      eq(taxJurisdictions.jurisdictionId, taxRates.rateJurisdictionId),
+    )
+    .where(and(eq(taxRates.rateTaxCodeId, taxCodeId), eq(taxRates.rateTaxCategoryId, taxCategoryId)))
+    .orderBy(
+      asc(taxJurisdictions.cascadeSequence),
+      asc(taxJurisdictions.taxGroup),
+      asc(taxJurisdictions.jurisdictionName),
+      asc(taxCategories.taxGroupSequence),
+      asc(taxJurisdictions.taxGroupSequence),
+    );
+  return rows.map((row) => ({
+    taxRateId: row.taxRateId,
+    taxRate: row.taxRate,
+    taxRoundingCode: row.taxRoundingCode,
+    cascadeSequence: row.cascadeSequence ?? 0,
+    taxType: row.taxType ?? TAX_TYPE_EXCLUDED,
+    taxGroup: row.taxGroup ?? "",
+    jurisdictionName: row.jurisdictionName,
+    jurisdictionId: row.jurisdictionId ?? 0,
+    taxCategoryId: row.taxCategoryId,
+    taxGroupSequence: Number(row.taxGroupSequence) + Number(row.jurisdictionGroupSequence),
+  }));
+}
+
+/** `Tax_code::get_sales_tax_code` — exact city+state, then empty city + state, then default. */
+export async function getSalesTaxCode(city: string, state: string): Promise<number> {
+  const db = await getDb();
+  const exact = await db
+    .select({ taxCodeId: taxCodes.taxCodeId })
+    .from(taxCodes)
+    .where(and(eq(taxCodes.city, city), eq(taxCodes.state, state), eq(taxCodes.deleted, false)));
+  if (exact.length === 1) return exact[0].taxCodeId;
+  const stateOnly = await db
+    .select({ taxCodeId: taxCodes.taxCodeId })
+    .from(taxCodes)
+    .where(and(eq(taxCodes.city, ""), eq(taxCodes.state, state), eq(taxCodes.deleted, false)));
+  if (stateOnly.length === 1) return stateOnly[0].taxCodeId;
+  return getConfigNumber("default_tax_code", 0);
+}
+
+/** `Tax_lib::get_applicable_tax_code`. */
+export async function getApplicableTaxCode(
+  registerMode: string,
+  city: string,
+  state: string,
+  salesTaxCodeId: number | null,
+): Promise<number> {
+  if (registerMode === "sale") {
+    return getConfigNumber("default_tax_code", 0);
+  }
+  if (salesTaxCodeId === null || salesTaxCodeId === 0) {
+    return getSalesTaxCode(city, state);
+  }
+  return salesTaxCodeId;
+}
+
+async function applyDestinationTax(
+  item: TaxCartLine,
+  city: string,
+  state: string,
+  salesTaxCodeId: number | null,
+  registerMode: string,
+  saleId: number,
+  taxes: Map<string, SaleTaxGroup>,
+  itemTaxes: ItemTaxDetail[],
+  taxedFlag: string,
+  untaxedFlag: string,
+): Promise<boolean> {
+  const taxCodeId = await getApplicableTaxCode(registerMode, city, state, salesTaxCodeId);
+  if (taxCodeId === -1 || Number(dec(item.price).toString()) === 0) return false;
+
+  const categoryId = item.taxCategoryId ?? Number(getConfig("default_tax_category", "0"));
+  const definition = await getTaxDefinition(taxCodeId, categoryId);
+  const taxDec = taxDecimals();
+  let basis = getItemTotal(item.quantity, item.price, item.discount, item.discountType, true);
+  let lastCascadeSequence = 0;
+  let cascadeTaxAmount = "0.0";
+  let taxed = false;
+
+  for (const tax of definition) {
+    if (tax.cascadeSequence !== lastCascadeSequence) {
+      lastCascadeSequence = tax.cascadeSequence;
+      basis = toDbDecimal(bcAdd(basis, cascadeTaxAmount), 4);
+    }
+    const taxType = tax.taxType;
+    let amount: string;
+    if (taxType === TAX_TYPE_INCLUDED) {
+      amount = getIncludedTax(
+        item.quantity,
+        item.price,
+        item.discount,
+        item.discountType,
+        tax.taxRate,
+      );
+    } else {
+      amount = getTaxForAmount(basis, tax.taxRate, tax.taxRoundingCode as RoundingMode, taxDec);
+      cascadeTaxAmount = toDbDecimal(bcAdd(cascadeTaxAmount, amount), 4);
+    }
+
+    if (Number(amount) !== 0) {
+      taxed = true;
+      updateTaxes(taxes, {
+        saleId,
+        taxType,
+        taxGroup: tax.taxGroup,
+        taxRate: tax.taxRate,
+        taxBasis: basis,
+        itemTaxAmount: amount,
+        printSequence: tax.taxGroupSequence,
+        roundingCode: tax.taxRoundingCode,
+        name: tax.taxGroup,
+        salesTaxCodeId: taxCodeId,
+        jurisdictionId: tax.jurisdictionId,
+        taxCategoryId: tax.taxCategoryId,
+      });
+    }
+
+    itemTaxes.push({
+      itemId: item.itemId,
+      line: item.line,
+      name: tax.taxGroup,
+      percent: tax.taxRate,
+      taxType,
+      roundingCode: tax.taxRoundingCode,
+      cascadeSequence: tax.cascadeSequence,
+      itemTaxAmount: amount,
+      salesTaxCodeId: taxCodeId,
+      jurisdictionId: tax.jurisdictionId,
+      taxCategoryId: tax.taxCategoryId,
+      taxGroupSequence: tax.taxGroupSequence,
+    });
+  }
+
+  void taxedFlag;
+  void untaxedFlag;
+  return taxed;
+}
+
+/**
+ * `Tax_lib::get_taxes`. The sale engine never falls back to `default_tax_1/2`
+ * for classic taxes; those keys only prefill the Items form.
+ */
+export async function getTaxes(
+  cart: TaxCartLine[],
+  options: TaxOptions = {},
+): Promise<TaxResult> {
+  await loadConfig();
+  const needsSession =
+    options.registerMode === undefined || options.customerId === undefined;
+  let session: Record<string, unknown> = {};
+  if (needsSession) {
+    const { getSessionData } = await import("@/lib/session");
+    session = await getSessionData().catch(() => ({}));
+  }
+  const registerMode =
+    options.registerMode ??
+    (typeof session.sales_mode === "string" ? session.sales_mode : "sale");
+  const customerId =
+    options.customerId ??
+    (typeof session.sales_customer === "number" ? session.sales_customer : -1);
+  const saleId = options.saleId ?? -1;
+
+  const taxes = new Map<string, SaleTaxGroup>();
+  const itemTaxes: ItemTaxDetail[] = [];
+  const taxedFlags: Record<number, string> = {};
+
+  const customerInfo = customerId === -1 ? null : await getCustomerInfo(customerId);
+  const taxable = customerId === -1 || !!customerInfo?.taxable;
+  if (!taxable) {
+    return { taxes: [], itemTaxes, taxedFlags };
+  }
+
+  const db = await getDb();
+  const taxIncluded = getConfigBool("tax_included", false);
+  const destination = getConfigBool("use_destination_based_tax", false);
+    const taxDec = taxDecimals();
+  const taxedFlag = lang("Sales.taxed_ind");
+  const untaxedFlag = lang("Sales.nontaxed_ind");
+
+  for (const item of cart) {
+    let taxed = false;
+
+    if (!destination) {
+      const taxInfo =
+        saleId === -1
+          ? await db
+              .select({ name: itemsTaxes.name, percent: itemsTaxes.percent })
+              .from(itemsTaxes)
+              .where(eq(itemsTaxes.itemId, item.itemId))
+          : await db
+              .select({ name: salesItemsTaxes.name, percent: salesItemsTaxes.percent })
+              .from(salesItemsTaxes)
+              .where(
+                and(
+                  eq(salesItemsTaxes.saleId, saleId),
+                  eq(salesItemsTaxes.itemId, item.itemId),
+                ),
+              );
+
+      let taxGroupSequence = 0;
+      for (const tax of taxInfo) {
+        const basis = getItemTotal(
+          item.quantity,
+          item.price,
+          item.discount,
+          item.discountType,
+          true,
+        );
+        const taxType = taxIncluded ? TAX_TYPE_INCLUDED : TAX_TYPE_EXCLUDED;
+        const amount = taxIncluded
+          ? getIncludedTax(
+              item.quantity,
+              item.price,
+              item.discount,
+              item.discountType,
+              tax.percent,
+            )
+          : getTaxForAmount(basis, tax.percent, ROUNDING_MODE.HALF_UP, taxDec);
+
+        if (Number(amount) !== 0) {
+          taxGroupSequence += 1;
+          updateTaxes(taxes, {
+            saleId: saleId === -1 ? -1 : saleId,
+            taxType,
+            taxGroup: tax.name,
+            taxRate: tax.percent,
+            taxBasis: basis,
+            itemTaxAmount: amount,
+            printSequence: taxGroupSequence,
+            roundingCode: ROUNDING_MODE.HALF_UP,
+            name: tax.name,
+          });
+          taxGroupSequence += 1;
+          taxed = true;
+        }
+
+        itemTaxes.push({
+          itemId: item.itemId,
+          line: item.line,
+          name: tax.name,
+          percent: toDbDecimal(tax.percent, 4),
+          taxType,
+          roundingCode: ROUNDING_MODE.HALF_UP,
+          cascadeSequence: 0,
+          itemTaxAmount: amount,
+          salesTaxCodeId: null,
+          jurisdictionId: null,
+          taxCategoryId: null,
+        });
+      }
+    } else {
+      taxed = await applyDestinationTax(
+        item,
+        customerInfo?.city ?? "",
+        customerInfo?.state ?? "",
+        customerInfo?.salesTaxCodeId ?? null,
+        registerMode,
+        saleId === -1 ? -1 : saleId,
+        taxes,
+        itemTaxes,
+        taxedFlag,
+        untaxedFlag,
+      );
+    }
+
+    taxedFlags[item.line] = taxed ? taxedFlag : untaxedFlag;
+  }
+
+  return { taxes: roundTaxes(Array.from(taxes.values())), itemTaxes, taxedFlags };
 }
 
 export function getRoundingOptions(): { value: number; label: string }[] {
@@ -82,333 +567,14 @@ export function getRoundingOptions(): { value: number; label: string }[] {
 }
 
 export function getTaxTypes(): Record<string, number> {
-  return { INCLUDED: TAX_TYPE.INCLUDED, EXCLUDED: TAX_TYPE.EXCLUDED };
+  return { INCLUDED: TAX_TYPE_INCLUDED, EXCLUDED: TAX_TYPE_EXCLUDED };
 }
 
-export function getTaxTypeOptions(selected?: number): { value: number; label: string }[] {
+export function getTaxTypeOptions(): { value: number; label: string }[] {
   return [
-    { value: TAX_TYPE.INCLUDED, label: "Included" },
-    { value: TAX_TYPE.EXCLUDED, label: "Excluded" },
+    { value: TAX_TYPE_EXCLUDED, label: "Sales Tax" },
+    { value: TAX_TYPE_INCLUDED, label: "VAT" },
   ];
 }
 
-export function getItemTotal(quantity: number, price: number, discount: number, discountType: number, includeDiscount: boolean): number {
-  let total = quantity * price;
-  if (includeDiscount) {
-    if (discountType === 0) {
-      total = total * (1 - discount / 100);
-    } else {
-      total = total - discount;
-    }
-  }
-  return total;
-}
-
-export function getItemSalesTax(quantity: number, price: number, discount: number, discountType: number, taxPercent: number, roundingCode: number, taxDec = 2): number {
-  const total = getItemTotal(quantity, price, discount, discountType, true);
-  const tax = total * (taxPercent / 100);
-  return roundNumber(tax, roundingCode, taxDec);
-}
-
-export function getTaxForAmount(taxBasis: number, percent: number, roundingMode: number, decimals: number): number {
-  return roundNumber(taxBasis * (percent / 100), roundingMode, decimals);
-}
-
-export function getIncludedTax(quantity: number, price: number, discountPercent: number, discountType: number, taxPercent: number, taxDec = 2, roundingCode: number = ROUNDING_MODE.HALF_UP): number {
-  const total = getItemTotal(quantity, price, discountPercent, discountType, true);
-  const exclBase = total / (1 + taxPercent / 100);
-  return roundNumber(total - exclBase, roundingCode, taxDec);
-}
-
-export function getTaxes(
-  cart: CartLine[],
-  customerId?: number | null,
-  registerMode = "sale"
-): { taxes: SaleTaxGroup[]; itemTaxes: ItemTax[] } {
-  const taxIncluded = getConfigBool("tax_included", false);
-  const useDestinationBased = getConfigBool("use_destination_based_tax", false);
-  const db = getDbSync();
-  const accumulator = new Map<string, SaleTaxGroup>();
-  const itemTaxes: ItemTax[] = [];
-
-  let customerCity: string | null = null;
-  let customerState: string | null = null;
-  let customerSalesTaxCodeId: number | null = null;
-  if (customerId) {
-    const customer = db
-      .select({
-        taxable: customers.taxable,
-        city: people.city,
-        state: people.state,
-        salesTaxCodeId: customers.salesTaxCodeId,
-      })
-      .from(customers)
-      .innerJoin(people, eq(people.personId, customers.personId))
-      .where(eq(customers.personId, customerId))
-      .get();
-    if (customer?.taxable === false) {
-      return { taxes: [], itemTaxes: [] };
-    }
-    if (customer) {
-      customerCity = customer.city ?? null;
-      customerState = customer.state ?? null;
-      customerSalesTaxCodeId = customer.salesTaxCodeId ?? null;
-    }
-  }
-
-  for (const [idx, line] of cart.entries()) {
-    const basis = getItemTotal(line.quantity, line.price, line.discount, line.discountType, true);
-    let rates: { name: string; percent: number; taxType: number; roundCode: number; cascadeSequence: number }[] = [];
-
-    if (useDestinationBased && line.taxCategoryId) {
-      const taxed = applyDestinationTax(
-        line,
-        customerCity,
-        customerState,
-        customerSalesTaxCodeId,
-        registerMode,
-        null,
-        accumulator,
-        itemTaxes,
-        idx + 1
-      );
-      if (taxed) continue;
-    }
-
-    const itemRows = db.select().from(itemsTaxes).where(eq(itemsTaxes.itemId, line.itemId)).all();
-    if (itemRows.length === 0 && !useDestinationBased) {
-      const default1Name = getConfig("default_tax_1_name");
-      const default1Rate = Number(getConfig("default_tax_1_rate", "0"));
-      if (default1Name && default1Rate !== 0) {
-        rates.push({
-          name: default1Name,
-          percent: default1Rate,
-          taxType: taxIncluded ? 0 : 1,
-          roundCode: ROUNDING_MODE.HALF_UP,
-          cascadeSequence: 0,
-        });
-      }
-      const default2Name = getConfig("default_tax_2_name");
-      const default2Rate = Number(getConfig("default_tax_2_rate", "0"));
-      if (default2Name && default2Rate !== 0) {
-        rates.push({
-          name: default2Name,
-          percent: default2Rate,
-          taxType: taxIncluded ? 0 : 1,
-          roundCode: ROUNDING_MODE.HALF_UP,
-          cascadeSequence: 0,
-        });
-      }
-    } else {
-      rates = itemRows.map((r) => ({
-        name: r.name,
-        percent: r.percent,
-        taxType: taxIncluded ? 0 : 1,
-        roundCode: ROUNDING_MODE.HALF_UP,
-        cascadeSequence: 0,
-      }));
-    }
-
-    let cumulativeBasis = basis;
-    for (const rate of rates) {
-      let taxAmount: number;
-      if (rate.taxType === 0) {
-        taxAmount = getIncludedTax(line.quantity, line.price, line.discount, line.discountType, rate.percent, taxDecimals(), rate.roundCode);
-      } else {
-        taxAmount = getTaxForAmount(cumulativeBasis, rate.percent, rate.roundCode, taxDecimals());
-      }
-      const groupKey = `X${rate.percent}% ${rate.name}`;
-      const existing = accumulator.get(groupKey);
-      if (existing) {
-        existing.saleTaxBasis = roundNumber(existing.saleTaxBasis + cumulativeBasis, ROUNDING_MODE.HALF_UP, 4);
-        existing.saleTaxAmount = roundNumber(existing.saleTaxAmount + taxAmount, ROUNDING_MODE.HALF_UP, 4);
-      } else {
-        accumulator.set(groupKey, {
-          taxType: rate.taxType,
-          roundCode: rate.roundCode,
-          taxGroup: groupKey,
-          saleTaxBasis: roundNumber(cumulativeBasis, ROUNDING_MODE.HALF_UP, 4),
-          saleTaxAmount: roundNumber(taxAmount, ROUNDING_MODE.HALF_UP, 4),
-        });
-      }
-      itemTaxes.push({
-        itemId: line.itemId,
-        line: idx + 1,
-        name: rate.name,
-        percent: rate.percent,
-        taxType: rate.taxType,
-        roundCode: rate.roundCode,
-        cascadeSequence: rate.cascadeSequence,
-        itemTaxAmount: taxAmount,
-      });
-      if (rate.cascadeSequence > 0) {
-        cumulativeBasis = roundNumber(cumulativeBasis + taxAmount, ROUNDING_MODE.HALF_UP, 4);
-      }
-    }
-  }
-
-  const taxes = Array.from(accumulator.values()).map((g) => ({
-    ...g,
-    saleTaxAmount: roundNumber(g.saleTaxAmount, g.roundCode, g.taxType === 0 ? taxDecimals() : totalsDecimals()),
-  }));
-
-  return { taxes, itemTaxes };
-}
-
-export function updateTaxes(taxes: SaleTaxGroup[], newTax: SaleTaxGroup): SaleTaxGroup[] {
-  const existing = taxes.find((t) => t.taxGroup === newTax.taxGroup);
-  if (existing) {
-    existing.saleTaxBasis = roundNumber(existing.saleTaxBasis + newTax.saleTaxBasis, ROUNDING_MODE.HALF_UP, 4);
-    existing.saleTaxAmount = roundNumber(existing.saleTaxAmount + newTax.saleTaxAmount, ROUNDING_MODE.HALF_UP, 4);
-  } else {
-    taxes.push(newTax);
-  }
-  return taxes;
-}
-
-export function applyInvoiceTaxing(taxes: SaleTaxGroup[]): SaleTaxGroup[] {
-  return taxes.sort((a, b) => a.taxGroup.localeCompare(b.taxGroup));
-}
-
-export function roundTaxes(taxes: SaleTaxGroup[]): SaleTaxGroup[] {
-  return taxes.map((t) => ({
-    ...t,
-    saleTaxAmount: roundNumber(t.saleTaxAmount, t.roundCode, t.taxType === 0 ? taxDecimals() : totalsDecimals()),
-  }));
-}
-
-export function applyDestinationTax(
-  item: CartLine,
-  city: string | null,
-  state: string | null,
-  salesTaxCodeId: number | null,
-  registerMode: string,
-  saleId: number | null,
-  accumulator: Map<string, SaleTaxGroup>,
-  itemTaxes: ItemTax[],
-  line: number
-): boolean {
-  const db = getDbSync();
-  const codeId = getApplicableTaxCode(registerMode, city, state, salesTaxCodeId);
-  if (!codeId) return false;
-  const codes = db.select().from(taxCodes).where(eq(taxCodes.taxCodeId, codeId)).get();
-  if (!codes) return false;
-
-  if (!item.taxCategoryId) return false;
-  const links = db
-    .select({
-      taxRate: taxCodeLinks.taxRate,
-      roundCode: taxCodeLinks.roundCode,
-      cascadeSequence: taxCodeLinks.cascadeSequence,
-      taxGroup: taxJurisdictions.taxGroup,
-      jurisdictionName: taxJurisdictions.jurisdictionName,
-      taxType: taxJurisdictions.taxType,
-    })
-    .from(taxCodeLinks)
-    .innerJoin(taxJurisdictions, eq(taxJurisdictions.jurisdictionId, taxCodeLinks.jurisdictionId))
-    .where(and(eq(taxCodeLinks.taxCodeId, codeId), eq(taxCodeLinks.taxCategoryId, item.taxCategoryId)))
-    .all();
-  if (links.length === 0) return false;
-
-  const basis = getItemTotal(item.quantity, item.price, item.discount, item.discountType, true);
-  let cumulativeBasis = basis;
-  let lastCascadeSequence = 0;
-  let cascadeTaxAmount = 0;
-
-  for (const link of links) {
-    const cascadeSequence = link.cascadeSequence;
-    if (cascadeSequence !== lastCascadeSequence) {
-      lastCascadeSequence = cascadeSequence;
-      cumulativeBasis = roundNumber(basis + cascadeTaxAmount, ROUNDING_MODE.HALF_UP, 4);
-    }
-
-    const taxType = link.taxType === "INCLUDED" ? 0 : 1;
-    let taxAmount: number;
-    if (taxType === 0) {
-      taxAmount = getIncludedTax(item.quantity, item.price, item.discount, item.discountType, link.taxRate, taxDecimals(), link.roundCode);
-    } else {
-      taxAmount = getTaxForAmount(cumulativeBasis, link.taxRate, link.roundCode, taxDecimals());
-      cascadeTaxAmount = roundNumber(cascadeTaxAmount + taxAmount, ROUNDING_MODE.HALF_UP, 4);
-    }
-
-    const groupName = link.taxGroup ?? link.jurisdictionName;
-    const groupKey = `X${link.taxRate}% ${groupName}`;
-    const existing = accumulator.get(groupKey);
-    if (existing) {
-      existing.saleTaxBasis = roundNumber(existing.saleTaxBasis + cumulativeBasis, ROUNDING_MODE.HALF_UP, 4);
-      existing.saleTaxAmount = roundNumber(existing.saleTaxAmount + taxAmount, ROUNDING_MODE.HALF_UP, 4);
-    } else {
-      accumulator.set(groupKey, {
-        taxType,
-        roundCode: link.roundCode,
-        taxGroup: groupKey,
-        saleTaxBasis: roundNumber(cumulativeBasis, ROUNDING_MODE.HALF_UP, 4),
-        saleTaxAmount: roundNumber(taxAmount, ROUNDING_MODE.HALF_UP, 4),
-      });
-    }
-
-    itemTaxes.push({
-      itemId: item.itemId,
-      line,
-      name: groupName,
-      percent: link.taxRate,
-      taxType,
-      roundCode: link.roundCode,
-      cascadeSequence,
-      itemTaxAmount: taxAmount,
-    });
-  }
-  void saleId;
-  return true;
-}
-
-export function getApplicableTaxCode(registerMode: string, city: string | null, state: string | null, salesTaxCodeId: number | null): number {
-  const db = getDbSync();
-  const defaultCode = getConfigNumber("default_tax_code", 0);
-  if (registerMode === "sale") return defaultCode;
-  if (salesTaxCodeId) return salesTaxCodeId;
-
-  const cleanCity = clean(city ?? "");
-  const cleanState = clean(state ?? "");
-  const exact = db
-    .select()
-    .from(taxCodes)
-    .where(and(eq(taxCodes.city, cleanCity), eq(taxCodes.state, cleanState), eq(taxCodes.deleted, false)))
-    .all();
-  if (exact.length === 1) return exact[0].taxCodeId;
-
-  const stateOnly = db
-    .select()
-    .from(taxCodes)
-    .where(and(eq(taxCodes.city, ""), eq(taxCodes.state, cleanState), eq(taxCodes.deleted, false)))
-    .all();
-  if (stateOnly.length === 1) return stateOnly[0].taxCodeId;
-
-  return defaultCode;
-}
-
-export function clean(s: string | null | undefined): string {
-  if (!s) return "";
-  return s.replace(/[<>;"']/g, "").trim();
-}
-
-export function getTaxCodeOptions(): { taxCodeId: number; taxCode: string; taxCodeName: string }[] {
-  return getDbSync().select().from(taxCodes).where(eq(taxCodes.deleted, false)).all();
-}
-
-export function getTaxJurisdictionOptions(): { jurisdictionId: number; jurisdictionName: string }[] {
-  return getDbSync().select().from(taxJurisdictions).where(eq(taxJurisdictions.deleted, false)).all();
-}
-
-export function getTaxCategoryOptions(): { taxCategoryId: number; taxCategory: string }[] {
-  return getDbSync().select().from(taxCategories).where(eq(taxCategories.deleted, false)).all();
-}
-
-export function getTaxCategoryUsage(taxCategoryId: number): number {
-  return getDbSync().select({ c: items.itemId }).from(items).where(eq(items.taxCategoryId, taxCategoryId)).all().length;
-}
-
 export { ROUNDING_MODE };
-void customers;
-void sales;
-void getConfig;

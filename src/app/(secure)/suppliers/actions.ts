@@ -15,10 +15,10 @@ export async function saveSupplierAction(formData: FormData) {
   const firstName = (formData.get("firstName") as string)?.trim();
   if (!firstName) throw new Error("First name required");
   const accountNumber = (formData.get("accountNumber") as string)?.trim() || null;
-  if (accountNumber && accountNumberExists(accountNumber, personId)) {
+  if (accountNumber && (await accountNumberExists(accountNumber, personId))) {
     throw new Error("Account number already exists");
   }
-  const id = saveSupplier(personId, {
+  await saveSupplier(personId, {
     firstName,
     lastName: (formData.get("lastName") as string)?.trim() || null,
     email: (formData.get("email") as string)?.trim().toLowerCase() || null,
@@ -41,7 +41,7 @@ export async function saveSupplierAction(formData: FormData) {
 
 export async function deleteSupplierAction(personId: number) {
   await requirePermission("suppliers");
-  deleteSupplier(personId);
+  await deleteSupplier(personId);
   revalidatePath("/suppliers");
   redirect("/suppliers");
 }

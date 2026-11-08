@@ -16,14 +16,14 @@ export async function saveCustomerAction(formData: FormData) {
   const firstName = (formData.get("firstName") as string)?.trim();
   if (!firstName) throw new Error("First name required");
   const email = (formData.get("email") as string)?.trim().toLowerCase() || null;
-  if (email && emailExists(email, personId)) {
+  if (email && (await emailExists(email, personId))) {
     throw new Error("Email already exists");
   }
   const accountNumber = (formData.get("accountNumber") as string)?.trim() || null;
-  if (accountNumber && accountNumberExists(accountNumber, personId)) {
+  if (accountNumber && (await accountNumberExists(accountNumber, personId))) {
     throw new Error("Account number already exists");
   }
-  const id = saveCustomer(personId, {
+  await saveCustomer(personId, {
     firstName,
     lastName: (formData.get("lastName") as string)?.trim() || null,
     gender: parseInt((formData.get("gender") as string) || "0", 10) || 0,
@@ -50,7 +50,7 @@ export async function saveCustomerAction(formData: FormData) {
 
 export async function deleteCustomerAction(personId: number) {
   await requirePermission("customers");
-  deleteCustomer(personId);
+  await deleteCustomer(personId);
   revalidatePath("/customers");
   redirect("/customers");
 }
