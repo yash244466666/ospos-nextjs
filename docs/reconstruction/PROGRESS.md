@@ -65,7 +65,7 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 
 ## Open follow-ups
 
-- P8 reports: exact row/summary/chart values against upstream fixtures (execution and permissions are verified; the PHP report models run under CI CLI once fixture rows exist).
+- P8 reports: the oracle-driven differential covers the 11 summary reports (205 values, PASS). Next: detailed_sales/detailed_item_sales/detailed_receivings (need `create()` before `getData`), inventory_low/inventory_summary (`definition_ids` input), and the four specific_* reports (need entity ids in the fixture).
 - P9 config: remaining child-table managers and visibility side effects; the 138-key tab surface and secret masking are covered.
 - P10 documents: `receipt_short` and the `invoice_type` template variants, PDF content parity, and email HTML parity. The default receipt flag matrix is implemented.
 - P11: client components (item-kit options, report filters, location selectors) still carry hard-coded English; server components use `lang()`. `bn` remains the additive locale (common.json only).
