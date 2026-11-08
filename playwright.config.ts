@@ -12,6 +12,9 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
+  // Next dev compiles a route on its first request; the login page is on every
+  // test's path, so keep headroom above the 30 s default.
+  timeout: 60_000,
   use: {
     baseURL,
     trace: "on-first-retry",
