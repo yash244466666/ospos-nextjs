@@ -11,6 +11,15 @@ test.describe("Sales register", () => {
     await page.goto("/sales/register");
   });
 
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/sales/register");
+    const cancel = page.getByTestId("cancel-sale-button");
+    if (await cancel.isVisible().catch(() => false)) {
+      await cancel.click();
+      await page.waitForURL("/sales/register");
+    }
+  });
+
   test("loads with empty cart", async ({ page }) => {
     await page.goto("/sales/register");
     await expect(page.getByRole("heading", { name: "Point of Sale" })).toBeVisible();
@@ -26,7 +35,8 @@ test.describe("Sales register", () => {
     await expect(page.getByTestId("cart-row-1")).toBeVisible();
     await expect(page.getByTestId("cart-item-name-1")).toHaveText("E2E Widget");
     await expect(page.getByTestId("cart-row-total-1")).toHaveText("$100.00");
-    await expect(page.getByTestId("totals-total-value")).toHaveText("$108.00"); // 8% default tax
+    // Classic OSPOS tax reads items_taxes only; no sale-time default-tax fallback.
+    await expect(page.getByTestId("totals-total-value")).toHaveText("$100.00");
   });
 
   test("edits cart quantity and updates totals", async ({ page }) => {

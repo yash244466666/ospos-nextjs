@@ -452,6 +452,13 @@ export async function deletePaymentAction(paymentType: string) {
   revalidatePath("/sales/register");
 }
 
+export async function clearCartAction() {
+  await requirePermission("sales");
+  await saveCart(clearAll(await getCart()));
+  revalidatePath("/sales/register");
+  redirect("/sales/register");
+}
+
 export async function setCommentAction(comment: string) {
   await saveCart(saleLib.setComment(await getCart(), comment));
   revalidatePath("/sales/register");
@@ -635,11 +642,28 @@ async function buildCompletionInput(
 
 export async function suspendAction() {
   await requirePermission("sales");
-  const built = await buildCompletionInput(SALE_STATUS.SUSPENDED);
-  if (!built.ok) return { error: built.error };
-  const saleId = await suspendSale({ ...built.input, status: SALE_STATUS.SUSPENDED });
-  const cart = setSuspendedId(await getCart(), saleId);
-  await saveCart(clearAll(cart));
+  await loadConfig();
+  const session = await auth();
+  if (!session?.user?.personId) redirect("/login");
+  const cart = await getCart();
+  if (cart.cart.length === 0) return { error: lang("Sales.unable_to_add_item") };
+  const saleId = await suspendSale({
+    cart: cart.cart,
+    status: SALE_STATUS.SUSPENDED,
+    customerId: cart.customerId,
+    employeeId: session.user.personId,
+    comment: cart.comment,
+    invoiceNumber: cart.invoiceNumber || null,
+    quoteNumber: cart.quoteNumber || null,
+    workOrderNumber: cart.workOrderNumber || null,
+    saleType: cart.saleType,
+    payments: cart.payments,
+    dinnerTableId: cart.dinnerTableId,
+    saleId: cart.saleId,
+    taxes: [],
+    itemTaxes: [],
+  });
+  await saveCart(clearAll(setSuspendedId(cart, saleId)));
   redirect("/sales/suspended");
 }
 

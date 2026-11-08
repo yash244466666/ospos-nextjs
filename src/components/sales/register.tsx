@@ -22,6 +22,7 @@ import {
   setWorkOrderNumberAction,
   completeSaleAction,
   suspendAction,
+  clearCartAction,
   setLocationAction,
   setDinnerTableAction,
   setEmailReceiptAction,
@@ -624,6 +625,14 @@ export default function Register(props: Props) {
               data-testid="suspend-sale-button"
             >
               <Pause className="h-4 w-4" /> Suspend
+            </button>
+            <button
+              className="rounded-lg border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+              disabled={pending || cart.cart.length === 0}
+              onClick={() => run(async () => { await clearCartAction(); })}
+              data-testid="cancel-sale-button"
+            >
+              Cancel
             </button>
           </div>
         </div>
