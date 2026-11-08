@@ -20,6 +20,19 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 | P12 Hardening | `port/p12-hardening` | PARTIAL | no-stubs + sql-safety PASS; throttle rewritten to the upstream filter contract (11 unit tests); `/api/migrate` now re-checks credentials on an existing DB and takes a migration lock | CSRF/session audit pending |
 | P13 Differential closure | `port/p13-differential` | PARTIAL | Oracle DB differential: config 138 keys PASS, seed (18/36/35/5/2/1) PASS, schema 39 tables/286 cols PASS; MySQL integration suite 29/29 on config/sequence, sale, items, receiving, reports, all ancillary repositories | scenario matrix and row/output diffs pending |
 
+## Gate evidence — 2026-11-08 session
+
+| Gate | Result |
+|---|---|
+| `npm run typecheck` | clean |
+| `npm run lint` | 0 errors, 32 warnings |
+| `npm test` | 100/100 (SQLite) |
+| `npm run test:mysql` | 29/29 against MySQL 8.4 (3307) |
+| `npm run build` | compiled successfully |
+| `npm run test:e2e` | 72/72 |
+| `npm run parity` (SQLite) | schema 38 tables/286 cols, config 138, seed 18/36/36/5/2/1, locales 46×1104×72680, reports 31, no-stubs, SQL safety |
+| `npm run parity` (MySQL) | schema 39 tables/286 cols, config 138, seed 18/36/36/5/2/1, locales, reports 31, no-stubs, SQL safety |
+
 ## Decisions log
 
 | Date | Decision | Rationale |
@@ -48,13 +61,13 @@ Live state of the reconstruction. One row per phase; obligation detail lives in
 
 ## Open follow-ups
 
-- P8 reports: every report key/filter/column/summary/chart, dual dialect.
-- P9 config: full 138-key field spec, tab set, secret masking, child-table editors.
-- P10 documents: data builder must carry discounts/taxes/flags, print/email variants.
-- P11: `bn` locale pack; replace remaining hard-coded UI strings.
-- P12: CSRF token for server actions/route handlers, login throttle, session audit.
-- P13: scenario-level differential harness against the Dockerized PHP oracle (DB rows + report output), beyond the schema/seed/config checks now in place.
-- MySQL integration coverage is now enforced by `npm run test:mysql` and the `integration-mysql` CI job.
+- P8 reports: exact row/summary/chart values against upstream fixtures (execution and permissions are verified; the PHP report models run under CI CLI once fixture rows exist).
+- P9 config: remaining child-table managers and visibility side effects; the 138-key tab surface and secret masking are covered.
+- P10 documents: `receipt_short` and the `invoice_type` template variants, PDF content parity, and email HTML parity. The default receipt flag matrix is implemented.
+- P11: client components (item-kit options, report filters, location selectors) still carry hard-coded English; server components use `lang()`. `bn` remains the additive locale (common.json only).
+- P12: CSRF token/session audit for server actions and route handlers.
+- P13: scenario-level differential harness (DB rows + report output) against the Dockerized PHP oracle; schema/seed/config and PHP-CLI model execution are wired.
+- MySQL integration coverage is enforced by `npm run test:mysql` and the `integration-mysql` CI job.
 
 ## Blockers
 
